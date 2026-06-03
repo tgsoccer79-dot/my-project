@@ -7,6 +7,7 @@
 - [portals.md](portals.md) — ポータルサイト比較（楽天/さとふる/ふるなび/ふるさとチョイス 等）
 - [ranking_kifu.md](ranking_kifu.md) — 自治体別 寄附額ランキング
 - [ranking_henreihin.md](ranking_henreihin.md) — 人気返礼品ランキング（ポータル別・カテゴリ別）
+- [market_trends.md](market_trends.md) — 市場規模・寄附総額の年次推移・将来予測
 - [jichitai_profiles/](jichitai_profiles/) — 注目自治体の個別プロファイル
 
 ## データ収集の方針
@@ -33,4 +34,9 @@
 
 ## 更新履歴
 
-- (骨組み作成) 構成・収集方針・テンプレートを定義。中身の収集は次フェーズ。
+- 2026-06-02: deep-research（5エージェント並行調査）にて主要データを収集・記入。
+  - ranking_kifu.md: 2024年度・2023年度ランキング、歴代1位変遷を記入
+  - ranking_henreihin.md: 4ポータルのランキング・カテゴリ別傾向・売れ筋フォーマットを記入
+  - portals.md: 各社詳細比較・手数料・ポイント禁止の影響を記入
+  - market_trends.md: 2008〜2024年度の年次推移・ターニングポイント・将来予測を新規作成
+- (骨組み作成) 構成・収集方針・テンプレートを定義。

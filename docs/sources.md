@@ -20,8 +20,20 @@
 
 ## 研究機関・調査
 
-- ふるさと納税研究所（TODO: URL確認）
-- 各種シンクタンク・大学の研究レポート（TODO）
+- RIETI（経済産業研究所）ふるさと納税実態調査シリーズ（小西陽子ほか）
+  - 速報2024年度動向: https://www.rieti.go.jp/jp/columns/a01_0785.html
+  - 2025年・制度改正の影響: https://www.rieti.go.jp/jp/columns/a01_0805.html
+- ふるさと納税総合研究所: https://fstx-ri.co.jp/news/
+- 知るギャラリー by INTAGE: https://gallery.intage.co.jp/furusato-nozei2025-1/
+- Nint ECデータラボ（ポータル別分析）: https://www.nint.jp/blog/2025furusato/
+- 東京財団（制度の変遷と問題）: https://www.tkfd.or.jp/research/detail.php?id=4298
+
+## 統計・市場データ（取得済み）
+
+- 総務省 現況調査（令和7年度実施・2024年度実績）: https://www.soumu.go.jp/main_content/001022815.crdownload
+- 総務省 現況調査（令和6年度実施・2023年度実績）PDF: https://www.soumu.go.jp/main_content/000960670.pdf
+- Local Opendata（2008〜2024推移）: https://furusato-money.local-opendata.jp/
+- ネットショップ担当者フォーラム（市場規模）: https://netshop.impress.co.jp/node/14553
 
 ## ニュース・報道
 
