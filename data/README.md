@@ -10,6 +10,8 @@ Markdownは「要約・解説・文脈」、こちらは「更新しやすい生
 | [market_trends_annual.csv](market_trends_annual.csv) | 全国の寄附総額・件数・経費率の年次推移（2008〜） | 年1回（総務省現況調査公表後：毎年7〜8月） |
 | [kifu_ranking_by_year.csv](kifu_ranking_by_year.csv) | 自治体別寄附額ランキング（複数年・上位のみ） | 年1回（同上） |
 | [henreihin_ranking.csv](henreihin_ranking.csv) | 人気返礼品ランキング（ポータル別・期間別） | 月次〜随時（ポータル各社のランキング・プレスリリース） |
+| [keihi_annual.csv](keihi_annual.csv) | 費目別経費内訳の全国年次集計（2022〜） | 年1回（総務省現況調査公表後） |
+| [toshi_ryushutsu.csv](toshi_ryushutsu.csv) | 都市部自治体の住民税流出額・収支損失（主要自治体） | 年1回（各自治体・報道公表後） |
 
 ---
 
@@ -69,7 +71,42 @@ Markdownは「要約・解説・文脈」、こちらは「更新しやすい生
 3. 更新したら対応するMarkdown（`docs/03_market/` や `docs/04_keihi/`）にも要約を反映し、コミットする。
 4. コミットメッセージ例: `update: 2025年度 総務省現況調査データを追加`
 
+### keihi_annual.csv
+
+| 列名 | 内容 |
+|------|------|
+| year | 年度 |
+| kifu_total_oku | 全国受入総額（億円） |
+| keihi_total_oku | 経費合計（億円） |
+| keihi_rate_pct | 経費率（%） |
+| henreihin_oku | 返礼品調達費（億円） |
+| henreihin_rate_pct | 返礼品調達費率（%） |
+| soryo_oku | 送料（億円） |
+| soryo_rate_pct | 送料率（%） |
+| koho_oku | 広報費（億円） |
+| koho_rate_pct | 広報費率（%） |
+| kessai_oku | 決済費用（億円） |
+| kessai_rate_pct | 決済費用率（%） |
+| jimu_oku | 事務費等（ポータル手数料含む）（億円） |
+| jimu_rate_pct | 事務費等率（%） |
+| portal_fee_oku | ポータル手数料（億円・判明分のみ） |
+| portal_fee_rate_pct | ポータル手数料率（%） |
+| jiyu_zaisgen_oku | 自治体の手残り（億円） |
+| source | 出典 |
+| fetched_at | データ取得日 |
+
+### toshi_ryushutsu.csv
+
+| 列名 | 内容 |
+|------|------|
+| jichitai | 自治体名 |
+| year | 年度 |
+| ryushutsu_oku | 住民税流出額または収支損失（億円） |
+| kofu_hokan | 地方交付税による補填有無 |
+| notes | 特記（計算方法等） |
+| source | 出典 |
+| fetched_at | データ取得日 |
+
 ## 次に作る予定のファイル
 
-- `keihi_by_municipality.csv` — 自治体別 経費内訳（総務省現況調査より）
 - `portal_fee_survey.csv` — ポータル別手数料調査データ（総務省調査が公表され次第）
