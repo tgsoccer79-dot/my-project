@@ -46,6 +46,16 @@ def signal(value, low, high, inverse=False):
     return "🟢" if value >= high else ("🟡" if value >= low else "🔴")
 
 
+def fmt_oku(value: float) -> str:
+    """億円表記。1兆（10,000億）以上は「X兆Y,ZZZ億円」形式で表示"""
+    v = int(round(value))
+    if v >= 10000:
+        cho = v // 10000
+        oku = v % 10000
+        return f"{cho}兆{oku:,}億円" if oku else f"{cho}兆円"
+    return f"{v:,}億円"
+
+
 DB_TAX      = "lhcloud_tax_data"
 DB_DELIVERY = "lhcloud_deli_data"
 DB_NOTE     = "※ 本DBはふるさと納税市場全体の約48%をカバー。総務省公開値との比較時は市場シェアを考慮すること。"
@@ -423,8 +433,9 @@ with tab1:
     latest = df_m.iloc[-1]
     prev   = df_m.iloc[-2] if len(df_m) > 1 else latest
     c1, c2, c3 = st.columns(3)
-    c1.metric("受入総額", f"{int(latest['kifu_total_oku']):,} 億円",
-              f"{int(latest['kifu_total_oku']) - int(prev['kifu_total_oku']):+,} 億円（前年度比）")
+    delta_oku = int(latest['kifu_total_oku']) - int(prev['kifu_total_oku'])
+    c1.metric("受入総額", fmt_oku(latest['kifu_total_oku']),
+              f"{'+' if delta_oku >= 0 else ''}{fmt_oku(abs(delta_oku))}（前年度比）")
     c2.metric("受入件数", f"{int(latest['cases_man']):,} 万件")
     c3.metric("経費率", f"{latest['keihi_rate_pct']}%", delta_color="inverse")
 
@@ -1043,8 +1054,8 @@ with tab6:
             ck1, ck2, ck3, ck4 = st.columns(4)
             ck1.metric("2024年度 経費率", f"{lk['keihi_rate_pct']}%")
             ck2.metric("返礼品調達費率", f"{lk['henreihin_rate_pct']}%")
-            ck3.metric("ポータル手数料", f"{int(lk['portal_fee_oku']):,} 億円", f"{lk['portal_fee_rate_pct']}%")
-            ck4.metric("自治体の手残り", f"{int(lk['jiyu_zaisgen_oku']):,} 億円")
+            ck3.metric("ポータル手数料", fmt_oku(lk['portal_fee_oku']), f"{lk['portal_fee_rate_pct']}%")
+            ck4.metric("自治体の手残り", fmt_oku(lk['jiyu_zaisgen_oku']))
             st.caption("注: ポータル手数料（13.0%）は全受入額比。仲介サイト経由額比では11.5%（別調査）")
 
             if not df_detail.empty:
