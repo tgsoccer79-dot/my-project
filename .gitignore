@@ -1,0 +1,7 @@
+# 総務省Excelは大容量なのでGit管理外（data/raw/に置いてローカルでパース）
+data/raw/*.xlsx
+
+# Python
+__pycache__/
+*.pyc
+.venv/
