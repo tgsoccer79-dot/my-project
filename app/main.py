@@ -46,34 +46,36 @@ def signal(value, low, high, inverse=False):
     return "🟢" if value >= high else ("🟡" if value >= low else "🔴")
 
 
+DB_TAX      = "lhcloud_tax_data"
+DB_DELIVERY = "lhcloud_deli_data"
+DB_NOTE     = "※ 本DBはふるさと納税市場全体の約48%をカバー。総務省公開値との比較時は市場シェアを考慮すること。"
+
+
 def generate_municipality_md(
     pref: str, muni: str, muni_code: str,
     metrics: dict,
-    db_tax: str, db_delivery: str,
 ) -> str:
     """自治体プロファイルのMDレポートを生成（内部DBクエリ付き）"""
     today = date.today().strftime("%Y年%m月%d日")
-    kifu     = metrics.get("受入額_億円", "N/A")
-    rank     = metrics.get("全国順位", "N/A")
-    growth   = metrics.get("3年成長率", "N/A")
-    keihi    = metrics.get("経費率", "N/A")
-    portal   = metrics.get("ポータル費率", "N/A")
+    kifu   = metrics.get("受入額_億円", "N/A")
+    rank   = metrics.get("全国順位", "N/A")
+    growth = metrics.get("3年成長率", "N/A")
+    keihi  = metrics.get("経費率", "N/A")
+    portal = metrics.get("ポータル費率", "N/A")
 
-    # 仮説を動的生成
     hypotheses = []
     if isinstance(keihi, float) and keihi < 40:
-        hypotheses.append("経費率が全国中央値より低い → 返礼品調達コストが抑制されているか、特定ポータルへの依存度が低い可能性")
+        hypotheses.append("経費率が全国中央値より低い → 返礼品調達コスト抑制またはポータル依存度が低い可能性。`apply_name`別シェアで確認推奨")
     elif isinstance(keihi, float) and keihi > 50:
-        hypotheses.append("経費率が5割ルールに接近 → 費目別の削減余地を精査する必要あり")
+        hypotheses.append("経費率が5割ルールに接近 → 費目別の削減余地を精査。ポータル手数料・広報費の内訳を確認すること")
     if isinstance(growth, float) and growth > 10:
-        hypotheses.append(f"3年成長率 {growth:+.1f}%/年 → 新規ポータル開拓か返礼品カテゴリ拡充が成長を牽引している可能性")
+        hypotheses.append(f"3年成長率 {growth:+.1f}%/年 → 新規ポータル開拓か返礼品カテゴリ拡充が牽引している可能性。`apply_name`・`goods_ana_ctg_name`の年度別推移で検証")
     elif isinstance(growth, float) and growth < 0:
-        hypotheses.append(f"3年成長率 {growth:+.1f}%/年 → ポータル集中リスクまたは返礼品の魅力低下が懸念される")
+        hypotheses.append(f"3年成長率 {growth:+.1f}%/年 → ポータル集中リスクまたは返礼品鮮度低下が懸念。競合自治体の返礼品カテゴリと比較")
     if isinstance(portal, float) and portal > 15:
-        hypotheses.append(f"ポータル費率 {portal:.1f}% → ポータル依存度が高く、手数料負担が経費を押し上げている可能性")
+        hypotheses.append(f"ポータル費率 {portal:.1f}% → 手数料負担が高い。2025年10月制度改正後のポータル構成変化を追跡すること")
     if not hypotheses:
-        hypotheses.append("特段の異常値なし。類似自治体との比較でさらなる仮説を検討")
-
+        hypotheses.append("特段の異常値なし。類似自治体との比較および返礼品カテゴリの詳細分析でさらなる仮説を検討")
     hyp_text = "\n".join(f"{i+1}. {h}" for i, h in enumerate(hypotheses))
 
     kifu_str   = f"{kifu:.1f} 億円" if isinstance(kifu, float) else str(kifu)
@@ -82,7 +84,7 @@ def generate_municipality_md(
     portal_str = f"{portal:.1f}%" if isinstance(portal, float) else str(portal)
 
     return f"""# ふるさと納税 分析レポート
-> 生成日: {today}　／　対象: {pref} {muni}（自治体コード: {muni_code}）
+> 生成日: {today}　／　対象: {pref} {muni}（自治体コード: `{muni_code}`）
 
 ---
 
@@ -91,10 +93,12 @@ def generate_municipality_md(
 | 指標 | 値 |
 |---|---|
 | 受入額（2024年度） | {kifu_str} |
-| 全国順位 | {rank} 位 |
+| 全国順位（2024年度） | {rank} 位 |
 | 3年平均成長率 | {growth_str} |
 | 経費率（2024年度） | {keihi_str} |
 | ポータル費率（2024年度） | {portal_str} |
+
+> {DB_NOTE}
 
 ---
 
@@ -106,37 +110,53 @@ def generate_municipality_md(
 
 ## 3. 内部DBへのクエリ提案
 
-> テーブル: `{db_tax}`（寄附受付）、`{db_delivery}`（配送・返礼品）
-> ※ 自治体コードは `municipality_code = '{muni_code}'` で絞り込んでください。
+> **DB:** `dev` / **スキーマ:** `public` / **ワークグループ:** `wg-ledghome-bigdata`
+> **必須フィルタ:** `tax_st_id = 2`（寄附完了）、`delete_flg = 0`
 
 ### 3-1. 年度別 受付件数・金額推移
 ```sql
 SELECT
-    tax_year                        AS 年度,
-    COUNT(*)                        AS 受付件数,
-    SUM(tax_amount)                 AS 寄附金額合計,
-    AVG(tax_amount)                 AS 平均寄附金額
-FROM {db_tax}
+    tax_year                                            AS 年度,
+    COUNT(*)                                            AS 受付件数,
+    SUM(tax_amount)                                     AS 寄附金額合計,
+    ROUND(AVG(tax_amount))                              AS 平均寄附金額
+FROM {DB_TAX}
 WHERE municipality_code = '{muni_code}'
+  AND tax_st_id  = 2
+  AND delete_flg = 0
 GROUP BY tax_year
 ORDER BY tax_year;
 ```
 
-### 3-2. ポータルサイト別 内訳（楽天／さとふる／チョイス）
+### 3-2. ポータルサイト別 内訳（表記ゆれ吸収）
 ```sql
 SELECT
     CASE
-        WHEN rakuten_id  IS NOT NULL AND rakuten_id  <> '' THEN '楽天市場'
-        WHEN choice_id   IS NOT NULL AND choice_id   <> '' THEN 'さとふる（チョイス）'
-        WHEN site_ctrl_id IS NOT NULL AND site_ctrl_id <> '' THEN 'その他ポータル'
-        ELSE '直接受付'
-    END                             AS ポータル区分,
-    COUNT(*)                        AS 件数,
-    SUM(tax_amount)                 AS 金額合計,
-    ROUND(AVG(tax_amount))          AS 平均金額
-FROM {db_tax}
+        WHEN apply_name ILIKE '%楽天%' OR apply_name ILIKE '%Rakuten%'
+             THEN '楽天'
+        WHEN apply_name ILIKE '%さとふる%' OR apply_name ILIKE '%チョイス%'
+             THEN 'さとふる／ふるさとチョイス'
+        WHEN apply_name ILIKE '%ふるなび%'
+             THEN 'ふるなび'
+        WHEN apply_name ILIKE '%Yahoo%' OR apply_name ILIKE '%ヤフー%'
+             THEN 'Yahoo!ふるさと納税'
+        WHEN apply_name ILIKE '%ANA%' OR apply_name ILIKE '%ＡＮＡ%'
+             THEN 'ANA'
+        WHEN apply_name ILIKE '%JAL%'
+             THEN 'JAL'
+        WHEN apply_name ILIKE '%au PAY%' OR apply_name ILIKE '%auPAY%'
+             THEN 'au PAY'
+        ELSE COALESCE(NULLIF(apply_name, ''), '直接受付・その他')
+    END                                                 AS ポータル区分,
+    COUNT(*)                                            AS 件数,
+    SUM(tax_amount)                                     AS 金額合計,
+    ROUND(AVG(tax_amount))                              AS 平均金額,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1)  AS 件数シェア率
+FROM {DB_TAX}
 WHERE municipality_code = '{muni_code}'
-  AND tax_year = 2024
+  AND tax_st_id  = 2
+  AND delete_flg = 0
+  AND tax_year   = 2024
 GROUP BY ポータル区分
 ORDER BY 金額合計 DESC;
 ```
@@ -144,29 +164,37 @@ ORDER BY 金額合計 DESC;
 ### 3-3. 返礼品カテゴリ別 実績
 ```sql
 SELECT
-    goods_ana_ctg_name              AS 解析用カテゴリ,
-    COUNT(*)                        AS 件数,
-    SUM(g_tax_amount)               AS 寄附金額合計,
-    ROUND(AVG(g_tax_amount))        AS 平均単価
-FROM {db_delivery}
-WHERE municipality_code = '{muni_code}'
-  AND tax_year = 2024
-GROUP BY goods_ana_ctg_name
+    d.goods_ana_ctg_name                                AS 解析用カテゴリ,
+    COUNT(*)                                            AS 件数,
+    SUM(d.g_tax_amount)                                 AS 寄附金額合計,
+    ROUND(AVG(d.g_tax_amount))                          AS 平均単価,
+    ROUND(100.0 * SUM(d.g_tax_amount)
+          / SUM(SUM(d.g_tax_amount)) OVER(), 1)         AS 金額シェア率
+FROM {DB_DELIVERY} d
+WHERE d.municipality_code = '{muni_code}'
+  AND d.tax_st_id  = 2
+  AND d.tax_year   = 2024
+GROUP BY d.goods_ana_ctg_name
 ORDER BY 寄附金額合計 DESC;
 ```
 
-### 3-4. 寄付者の地域・属性分析
+### 3-4. 寄附者の地域・属性分析
 ```sql
 SELECT
-    tax_pref                        AS 寄付者都道府県,
-    tax_sex                         AS 性別,
-    FLOOR((YEAR(uketsuke_date) - YEAR(tax_birthday)) / 10) * 10 AS 年代,
-    COUNT(*)                        AS 件数,
-    SUM(tax_amount)                 AS 金額合計
-FROM {db_tax}
-WHERE municipality_code = '{muni_code}'
-  AND tax_year = 2024
-GROUP BY tax_pref, tax_sex, 年代
+    t.tax_pref                                          AS 寄附者都道府県,
+    t.tax_sex                                           AS 性別,
+    FLOOR(
+        DATEDIFF('year', t.tax_birthday::DATE, CURRENT_DATE) / 10
+    ) * 10                                              AS 年代,
+    COUNT(*)                                            AS 件数,
+    SUM(t.tax_amount)                                   AS 金額合計
+FROM {DB_TAX} t
+WHERE t.municipality_code = '{muni_code}'
+  AND t.tax_st_id  = 2
+  AND t.delete_flg = 0
+  AND t.tax_year   = 2024
+  AND t.tax_birthday IS NOT NULL
+GROUP BY t.tax_pref, t.tax_sex, 年代
 ORDER BY 金額合計 DESC
 LIMIT 30;
 ```
@@ -174,49 +202,69 @@ LIMIT 30;
 ### 3-5. 定期便（リピーター）比率
 ```sql
 SELECT
-    set_flg                         AS 定期便フラグ,
-    COUNT(*)                        AS 件数,
-    SUM(g_tax_amount)               AS 金額合計
-FROM {db_delivery}
-WHERE municipality_code = '{muni_code}'
-  AND tax_year = 2024
-GROUP BY set_flg;
+    CASE WHEN d.set_flg = 1 THEN '定期便' ELSE '通常便' END AS 種別,
+    COUNT(*)                                            AS 件数,
+    SUM(d.g_tax_amount)                                 AS 金額合計,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1)  AS 件数比率
+FROM {DB_DELIVERY} d
+WHERE d.municipality_code = '{muni_code}'
+  AND d.tax_st_id = 2
+  AND d.tax_year  = 2024
+GROUP BY d.set_flg;
 ```
 
-### 3-6. 支払方法別 傾向
+### 3-6. 月別受付トレンド（季節性・キャンペーン影響確認）
 ```sql
 SELECT
-    pay_name                        AS 支払方法,
-    COUNT(*)                        AS 件数,
-    SUM(tax_amount)                 AS 金額合計,
-    ROUND(AVG(tax_amount))          AS 平均金額
-FROM {db_tax}
-WHERE municipality_code = '{muni_code}'
-  AND tax_year = 2024
-GROUP BY pay_name
-ORDER BY 金額合計 DESC;
+    TO_CHAR(DATE_TRUNC('month', t.uketsuke_date), 'YYYY年MM月') AS 年月,
+    COUNT(*)                                            AS 件数,
+    SUM(t.tax_amount)                                   AS 金額合計
+FROM {DB_TAX} t
+WHERE t.municipality_code = '{muni_code}'
+  AND t.tax_st_id  = 2
+  AND t.delete_flg = 0
+  AND t.tax_year   = 2024
+GROUP BY DATE_TRUNC('month', t.uketsuke_date)
+ORDER BY DATE_TRUNC('month', t.uketsuke_date);
+-- ※ 2023年9月・2025年9月は制度改正前駆け込みにより異常伸長の可能性あり
+-- ※ 5・10・15・20・25・30日は楽天・Yahoo!キャンペーンによる件数増加傾向あり
 ```
 
 ---
 
-## 4. 次のアクション候補
+## 4. 分析時の留意事項（7つの観点）
+
+以下の観点でクエリ結果を検証・コメントすること：
+
+1. **データの正確性** — 件数・金額の総務省公開値との整合性（DB市場シェア約48%を考慮）
+2. **トレンドの解釈** — 増減の要因仮説（ポータル変更・返礼品改廃・競合自治体の影響）
+3. **異常値・外れ値** — 突出した月・カテゴリの有無
+4. **季節性・時期的特徴** — 2023年9月・2025年9月の駆け込み需要、5と0のつく日キャンペーン効果
+5. **比較対象との文脈** — 昨対比・同規模自治体との比較
+6. **ビジネス上のインサイト** — ポータル最適化・返礼品カテゴリ戦略への示唆
+7. **注意事項・データの限界** — 直近1ヶ月のNULL多発時はデータ欠損の可能性あり
+
+---
+
+## 5. 次のアクション候補
 
 - [ ] 上記クエリを社内DB（Claude Code経由）で実行し、仮説を検証
-- [ ] ポータル別比率と経費率の関係を類似自治体と比較
-- [ ] 返礼品カテゴリの構成比を全国平均と対比
+- [ ] ポータル別シェアと総務省「ポータル費率」を突合
+- [ ] 返礼品カテゴリ構成比を全国平均・類似自治体と比較
 - [ ] 定期便比率が低い場合はリピーター施策の余地を検討
+- [ ] 2025年10月以降のポータル戦略変化を月別トレンドで確認
 
 ---
 *このレポートはふるさと納税分析ダッシュボードにより自動生成されました。*
-*公開データ出典: 総務省現況調査*
+*公開データ出典: 総務省現況調査 ／ 内部DB: {DB_TAX} / {DB_DELIVERY}*
 """
 
 
-def generate_list_md(df_list: pd.DataFrame, conditions: str, db_tax: str, db_delivery: str) -> str:
+def generate_list_md(df_list: pd.DataFrame, conditions: str) -> str:
     """抽出自治体リストのMDレポートを生成"""
     today = date.today().strftime("%Y年%m月%d日")
     codes = df_list["団体コード"].dropna().astype(str).unique().tolist() if "団体コード" in df_list.columns else []
-    codes_sql = ", ".join(f"'{c}'" for c in codes[:50])  # 上限50件
+    codes_sql = ", ".join(f"'{c}'" for c in codes[:50])
 
     table_rows = []
     for _, r in df_list.head(30).iterrows():
@@ -239,6 +287,8 @@ def generate_list_md(df_list: pd.DataFrame, conditions: str, db_tax: str, db_del
 
 **抽出件数: {len(df_list)} 件**
 
+> {DB_NOTE}
+
 ---
 
 ## 2. 抽出自治体リスト（上位30件）
@@ -251,53 +301,66 @@ def generate_list_md(df_list: pd.DataFrame, conditions: str, db_tax: str, db_del
 
 ## 3. 内部DBへの一括クエリ
 
-> テーブル: `{db_tax}`（寄附受付）、`{db_delivery}`（配送・返礼品）
+> **DB:** `dev` / **スキーマ:** `public` / **ワークグループ:** `wg-ledghome-bigdata`
+> **必須フィルタ:** `tax_st_id = 2`（寄附完了）、`delete_flg = 0`
 
 ### 3-1. 対象自治体の年度別受付サマリー
 ```sql
 SELECT
-    municipality_name               AS 自治体名,
-    municipality_code               AS 自治体コード,
-    tax_year                        AS 年度,
-    COUNT(*)                        AS 受付件数,
-    SUM(tax_amount)                 AS 寄附金額合計
-FROM {db_tax}
-WHERE municipality_code IN ({codes_sql})
-GROUP BY municipality_name, municipality_code, tax_year
-ORDER BY municipality_code, tax_year;
+    t.municipality_name                                 AS 自治体名,
+    t.municipality_code                                 AS 自治体コード,
+    t.tax_year                                          AS 年度,
+    COUNT(*)                                            AS 受付件数,
+    SUM(t.tax_amount)                                   AS 寄附金額合計,
+    ROUND(AVG(t.tax_amount))                            AS 平均寄附金額
+FROM {DB_TAX} t
+WHERE t.municipality_code IN ({codes_sql or "'（コードが見つかりません）'"})
+  AND t.tax_st_id  = 2
+  AND t.delete_flg = 0
+GROUP BY t.municipality_name, t.municipality_code, t.tax_year
+ORDER BY t.municipality_code, t.tax_year;
 ```
 
-### 3-2. 対象自治体のポータル別シェア
+### 3-2. 対象自治体のポータル別シェア（2024年度）
 ```sql
 SELECT
-    municipality_name               AS 自治体名,
+    t.municipality_name                                 AS 自治体名,
     CASE
-        WHEN rakuten_id   IS NOT NULL AND rakuten_id   <> '' THEN '楽天市場'
-        WHEN choice_id    IS NOT NULL AND choice_id    <> '' THEN 'さとふる（チョイス）'
-        WHEN site_ctrl_id IS NOT NULL AND site_ctrl_id <> '' THEN 'その他ポータル'
-        ELSE '直接受付'
-    END                             AS ポータル区分,
-    COUNT(*)                        AS 件数,
-    SUM(tax_amount)                 AS 金額合計
-FROM {db_tax}
-WHERE municipality_code IN ({codes_sql})
-  AND tax_year = 2024
-GROUP BY municipality_name, ポータル区分
-ORDER BY municipality_name, 金額合計 DESC;
+        WHEN t.apply_name ILIKE '%楽天%' OR t.apply_name ILIKE '%Rakuten%'
+             THEN '楽天'
+        WHEN t.apply_name ILIKE '%さとふる%' OR t.apply_name ILIKE '%チョイス%'
+             THEN 'さとふる／ふるさとチョイス'
+        WHEN t.apply_name ILIKE '%ふるなび%'    THEN 'ふるなび'
+        WHEN t.apply_name ILIKE '%Yahoo%'       THEN 'Yahoo!ふるさと納税'
+        WHEN t.apply_name ILIKE '%ANA%'         THEN 'ANA'
+        WHEN t.apply_name ILIKE '%JAL%'         THEN 'JAL'
+        WHEN t.apply_name ILIKE '%au PAY%'      THEN 'au PAY'
+        ELSE COALESCE(NULLIF(t.apply_name, ''), '直接受付・その他')
+    END                                                 AS ポータル区分,
+    COUNT(*)                                            AS 件数,
+    SUM(t.tax_amount)                                   AS 金額合計
+FROM {DB_TAX} t
+WHERE t.municipality_code IN ({codes_sql or "'（コードが見つかりません）'"})
+  AND t.tax_st_id  = 2
+  AND t.delete_flg = 0
+  AND t.tax_year   = 2024
+GROUP BY t.municipality_name, ポータル区分
+ORDER BY t.municipality_name, 金額合計 DESC;
 ```
 
-### 3-3. 対象自治体の返礼品カテゴリ別実績
+### 3-3. 対象自治体の返礼品カテゴリ別実績（2024年度）
 ```sql
 SELECT
-    municipality_name               AS 自治体名,
-    goods_ana_ctg_name              AS カテゴリ,
-    COUNT(*)                        AS 件数,
-    SUM(g_tax_amount)               AS 金額合計
-FROM {db_delivery}
-WHERE municipality_code IN ({codes_sql})
-  AND tax_year = 2024
-GROUP BY municipality_name, goods_ana_ctg_name
-ORDER BY municipality_name, 金額合計 DESC;
+    d.municipality_name                                 AS 自治体名,
+    d.goods_ana_ctg_name                                AS カテゴリ,
+    COUNT(*)                                            AS 件数,
+    SUM(d.g_tax_amount)                                 AS 金額合計
+FROM {DB_DELIVERY} d
+WHERE d.municipality_code IN ({codes_sql or "'（コードが見つかりません）'"})
+  AND d.tax_st_id = 2
+  AND d.tax_year  = 2024
+GROUP BY d.municipality_name, d.goods_ana_ctg_name
+ORDER BY d.municipality_name, 金額合計 DESC;
 ```
 
 ---
@@ -307,9 +370,11 @@ ORDER BY municipality_name, 金額合計 DESC;
 - [ ] 上記クエリを社内DB（Claude Code経由）で実行
 - [ ] ポータル構成比を総務省経費データと突合し、費用対効果を算出
 - [ ] 返礼品カテゴリの伸び率を公開データの成長率と比較
+- [ ] 2025年10月以降のポータル戦略変化を月別トレンドで確認
 
 ---
 *このレポートはふるさと納税分析ダッシュボードにより自動生成されました。*
+*公開データ出典: 総務省現況調査 ／ 内部DB: {DB_TAX} / {DB_DELIVERY}*
 """
 
 
@@ -325,11 +390,6 @@ df_ts           = load_timeseries()
 
 # ── サイドバー ──────────────────────────────────────────────────
 with st.sidebar:
-    st.header("🗄️ 内部DB設定")
-    st.caption("MDレポートに埋め込むSQLのテーブル名を設定します。")
-    db_tax      = st.text_input("寄附受付テーブル名", value="tax_records",      key="db_tax")
-    db_delivery = st.text_input("配送・返礼品テーブル名", value="delivery_records", key="db_delivery")
-    st.divider()
     st.header("📎 リンク")
     st.markdown("[📁 総務省 現況調査](https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/furusato/archive/)")
     st.markdown("[📖 GitHubリポジトリ](https://github.com/tgsoccer79-dot/my-project)")
@@ -676,7 +736,7 @@ with tab3:
             }
             md_content = generate_municipality_md(
                 sel_pref, sel_muni, muni_code_val,
-                md_metrics, db_tax, db_delivery,
+                md_metrics,
             )
             col_md1, col_md2 = st.columns([1, 3])
             with col_md1:
@@ -1112,7 +1172,7 @@ with tab7:
                 f"- 経費率: {keihi_range[0]}〜{keihi_range[1]}%",
                 f"- 並び替え: {sort_col}",
             ])
-            md_list = generate_list_md(df_ext, conditions_text, db_tax, db_delivery)
+            md_list = generate_list_md(df_ext, conditions_text)
             st.download_button(
                 label="📄 MDレポートをダウンロード",
                 data=md_list,
