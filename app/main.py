@@ -100,7 +100,8 @@ df_market  = load_csv("market_trends_annual.csv")
 df_ranking = load_csv("kifu_ranking_by_year.csv")
 df_keihi   = load_csv("keihi_annual.csv")
 df_ryushutsu = load_csv("toshi_ryushutsu.csv")
-df_detail  = load_csv("jichitai_detail.csv")
+df_detail       = load_csv("jichitai_detail.csv")
+df_detail_multi = load_csv("jichitai_detail_multi.csv")
 df_ts      = load_timeseries()
 
 
@@ -351,8 +352,52 @@ with tab3:
                 fig_r.update_layout(height=300, margin=dict(t=10, b=10))
                 st.plotly_chart(fig_r, use_container_width=True)
 
-            # ── 経費内訳 ────────────────────────────────────
-            if not df_muni_d.empty:
+            # ── 経費内訳（多年度トレンド） ──────────────────────
+            df_muni_multi = (df_detail_multi[df_detail_multi["市区町村"] == sel_muni]
+                             if not df_detail_multi.empty else pd.DataFrame())
+            if not df_muni_multi.empty:
+                st.markdown("#### 💰 経費構造の推移（2019〜2024年度）")
+                cost_cols = {"返礼品調達費_円": "返礼品調達費", "送付費_円": "送付費",
+                             "広報費_円": "広報費", "決済費_円": "決済費",
+                             "事務費_円": "事務費", "その他費_円": "その他"}
+                rows_trend = []
+                for _, row_t in df_muni_multi.iterrows():
+                    total_yen = row_t["受入額_億円"] * 1e8 if row_t["受入額_億円"] > 0 else None
+                    for col_k, label_k in cost_cols.items():
+                        val = row_t.get(col_k) or 0
+                        rows_trend.append({
+                            "年度": int(row_t["年度"]), "費目": label_k,
+                            "金額（億円）": round(val / 1e8, 2),
+                            "比率(%)": round(val / total_yen * 100, 1) if total_yen else None,
+                        })
+                df_trend = pd.DataFrame(rows_trend)
+                t1, t2 = st.columns(2)
+                with t1:
+                    fig_trend = px.bar(df_trend, x="年度", y="金額（億円）", color="費目",
+                                       barmode="stack",
+                                       color_discrete_map={"返礼品調達費": "#e74c3c", "送付費": "#e67e22",
+                                                           "事務費": "#3498db", "決済費": "#9b59b6",
+                                                           "広報費": "#95a5a6", "その他": "#bdc3c7"})
+                    fig_trend.update_layout(height=300, margin=dict(t=10, b=10))
+                    st.plotly_chart(fig_trend, use_container_width=True)
+                with t2:
+                    fig_rate = px.bar(df_trend, x="年度", y="比率(%)", color="費目",
+                                      barmode="stack",
+                                      color_discrete_map={"返礼品調達費": "#e74c3c", "送付費": "#e67e22",
+                                                          "事務費": "#3498db", "決済費": "#9b59b6",
+                                                          "広報費": "#95a5a6", "その他": "#bdc3c7"})
+                    fig_rate.add_hline(y=50, line_dash="dash", line_color="red",
+                                       annotation_text="5割ルール上限")
+                    fig_rate.update_layout(height=300, margin=dict(t=10, b=10),
+                                           yaxis_title="経費率（%）")
+                    st.plotly_chart(fig_rate, use_container_width=True)
+                # 2024年度の詳細
+                if not df_muni_d.empty:
+                    dr = df_muni_d.iloc[0]
+                    portal_pct = dr["ポータル費_億円"] / dr["受入額_億円"] * 100 if dr["受入額_億円"] > 0 else 0
+                    st.metric("2024年度 ポータル費", f"{dr['ポータル費_億円']:.2f} 億円",
+                              f"{portal_pct:.1f}% of 受入額")
+            elif not df_muni_d.empty:
                 st.markdown("#### 💰 経費内訳（2024年度）")
                 dr = df_muni_d.iloc[0]
                 費目 = {"返礼品調達費": dr.get("返礼品調達費_円") or 0,
@@ -374,6 +419,7 @@ with tab3:
                     st.dataframe(df_pie[["費目", "金額（億円）"]].assign(
                         割合=lambda d: (d["金額（億円）"] / d["金額（億円）"].sum() * 100).round(1).astype(str) + "%"
                     ), use_container_width=True, hide_index=True)
+                    portal_pct = dr["ポータル費_億円"] / dr["受入額_億円"] * 100 if dr["受入額_億円"] > 0 else 0
                     st.metric("ポータル費", f"{dr['ポータル費_億円']:.2f} 億円",
                               f"{portal_pct:.1f}% of 受入額")
 
@@ -705,6 +751,34 @@ with tab7:
         elif analysis_tab == "経費構造解剖":
             st.markdown("### 🔬 急成長自治体の経費構造解剖")
             st.caption("前年比+50%以上を「急成長」と定義。経費配分のパターンを分析します。")
+
+            # 多年度費目別トレンド（全国集計）
+            if not df_detail_multi.empty:
+                st.markdown("#### 📅 費目別経費率の年度推移（全国中央値）")
+                cost_cols7 = {"返礼品調達費_円": "返礼品調達費", "送付費_円": "送付費",
+                              "広報費_円": "広報費", "決済費_円": "決済費",
+                              "事務費_円": "事務費", "その他費_円": "その他"}
+                rows7 = []
+                for yr7, grp7 in df_detail_multi.groupby("年度"):
+                    total_yen7 = (grp7["受入額_億円"] * 1e8).sum()
+                    if total_yen7 <= 0:
+                        continue
+                    for col7, lbl7 in cost_cols7.items():
+                        s = grp7[col7].fillna(0).sum()
+                        rows7.append({"年度": int(yr7), "費目": lbl7,
+                                      "比率(%)": round(s / total_yen7 * 100, 2)})
+                df_trend7 = pd.DataFrame(rows7)
+                fig_trend7 = px.bar(df_trend7, x="年度", y="比率(%)", color="費目",
+                                    barmode="stack",
+                                    color_discrete_map={"返礼品調達費": "#e74c3c", "送付費": "#e67e22",
+                                                        "事務費": "#3498db", "決済費": "#9b59b6",
+                                                        "広報費": "#95a5a6", "その他": "#bdc3c7"})
+                fig_trend7.add_hline(y=50, line_dash="dash", line_color="red",
+                                     annotation_text="5割ルール上限")
+                fig_trend7.update_layout(height=340, margin=dict(t=20, b=10),
+                                         yaxis_title="経費率（全国合計ベース）（%）")
+                st.plotly_chart(fig_trend7, use_container_width=True)
+                st.divider()
 
             if not df_ts.empty:
                 df_ranked7 = calc_ranking(df_ts)
