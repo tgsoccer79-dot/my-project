@@ -98,12 +98,14 @@ df_detail = load_detail()
 df_ts = load_timeseries()
 
 # ── タブ ─────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 市場トレンド",
     "🏆 年間ランキング",
     "🏘️ 自治体プロファイル",
+    "⚔️ 自治体比較",
+    "🚀 ランキング変動",
+    "🗾 都道府県勢力図",
     "💰 経費・収支",
-    "🏙️ 都市流出",
 ])
 
 
@@ -348,9 +350,337 @@ with tab3:
 
 
 # ═══════════════════════════════════════════════════════════════
-# Tab 4: 経費・収支
+# ═══════════════════════════════════════════════════════════════
+# Tab 4: 自治体比較
 # ═══════════════════════════════════════════════════════════════
 with tab4:
+    if df_ts.empty:
+        st.info("総務省Excelをサイドバーからアップロードしてパースするとこのタブが使えます。")
+    else:
+        st.subheader("⚔️ 自治体を並べて比較する（最大4自治体）")
+
+        df_ranked = calc_ranking(df_ts)
+
+        # 自治体選択（最大4つ）
+        all_munis_sorted = (
+            df_ranked[df_ranked["年度"] == df_ranked["年度"].max()]
+            .sort_values("順位")["市区町村"]
+            .tolist()
+        )
+        defaults = [m for m in ["白糠町", "都城市", "泉佐野市", "別海町"] if m in all_munis_sorted]
+        sel_compare = st.multiselect(
+            "自治体を選択（最大4つ）",
+            all_munis_sorted,
+            default=defaults[:4],
+            max_selections=4,
+        )
+
+        if not sel_compare:
+            st.info("自治体を選択してください")
+        else:
+            df_comp = df_ranked[df_ranked["市区町村"].isin(sel_compare)].copy()
+
+            # ── 成長曲線比較 ──────────────────────────────────
+            st.markdown("#### 📈 寄附額の推移")
+            fig_line = px.line(
+                df_comp, x="年度", y="受入額_億円", color="市区町村",
+                markers=True,
+                labels={"年度": "年度", "受入額_億円": "受入額（億円）"},
+                color_discrete_sequence=px.colors.qualitative.Set1,
+            )
+            fig_line.update_layout(height=360, margin=dict(t=10, b=10))
+            st.plotly_chart(fig_line, use_container_width=True)
+
+            # ── 順位推移比較 ──────────────────────────────────
+            st.markdown("#### 🏅 全国順位の推移")
+            fig_rank = px.line(
+                df_comp, x="年度", y="順位", color="市区町村",
+                markers=True,
+                labels={"年度": "年度", "順位": "全国順位（低いほど上位）"},
+                color_discrete_sequence=px.colors.qualitative.Set1,
+            )
+            fig_rank.update_yaxes(autorange="reversed")
+            fig_rank.update_layout(height=320, margin=dict(t=10, b=10))
+            st.plotly_chart(fig_rank, use_container_width=True)
+
+            # ── 経費率比較（2024年度） ─────────────────────────
+            if not df_detail.empty:
+                st.markdown("#### 💰 経費率比較（2024年度）")
+                df_cost_comp = df_detail[df_detail["市区町村"].isin(sel_compare)].copy()
+                if not df_cost_comp.empty:
+                    cost_items = {
+                        "返礼品調達費_円": "返礼品調達費",
+                        "送付費_円": "送付費",
+                        "広報費_円": "広報費",
+                        "決済費_円": "決済費",
+                        "事務費_円": "事務費",
+                        "その他費_円": "その他",
+                    }
+                    rows = []
+                    for _, r in df_cost_comp.iterrows():
+                        total = r["受入額_億円"] * 1e8
+                        for col, label in cost_items.items():
+                            val = r.get(col) or 0
+                            rows.append({
+                                "市区町村": r["市区町村"],
+                                "費目": label,
+                                "比率(%)": round(val / total * 100, 1) if total > 0 else 0,
+                            })
+                    df_cost_melt = pd.DataFrame(rows)
+                    fig_cost = px.bar(
+                        df_cost_melt, x="市区町村", y="比率(%)", color="費目",
+                        barmode="stack",
+                        color_discrete_map={
+                            "返礼品調達費": "#e74c3c", "送付費": "#e67e22",
+                            "事務費": "#3498db", "決済費": "#9b59b6",
+                            "広報費": "#95a5a6", "その他": "#bdc3c7",
+                        },
+                        labels={"比率(%)": "受入額に占める割合（%）"},
+                    )
+                    fig_cost.add_hline(y=50, line_dash="dash", line_color="red",
+                                       annotation_text="5割ルール上限")
+                    fig_cost.update_layout(height=360, margin=dict(t=10, b=10))
+                    st.plotly_chart(fig_cost, use_container_width=True)
+
+            # ── KPIサマリーテーブル ────────────────────────────
+            st.markdown("#### 📊 2024年度サマリー")
+            latest_year = df_comp["年度"].max()
+            df_summary = df_comp[df_comp["年度"] == latest_year][
+                ["市区町村", "受入額_億円", "受入件数", "順位"]
+            ].copy()
+            if not df_detail.empty:
+                df_summary = df_summary.merge(
+                    df_detail[["市区町村", "経費率合計", "ポータル費_億円"]],
+                    on="市区町村", how="left",
+                )
+                df_summary["経費率"] = (df_summary["経費率合計"] * 100).round(1).astype(str) + "%"
+                df_summary = df_summary.drop(columns=["経費率合計"])
+            st.dataframe(df_summary, use_container_width=True, hide_index=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Tab 5: ランキング変動マップ
+# ═══════════════════════════════════════════════════════════════
+with tab5:
+    if df_ts.empty:
+        st.info("総務省Excelをサイドバーからアップロードしてパースするとこのタブが使えます。")
+    else:
+        st.subheader("🚀 急上昇・急降下した自治体を探す")
+
+        df_ranked = calc_ranking(df_ts)
+        years_avail = sorted(df_ranked["年度"].unique())
+
+        col_y1, col_y2, col_top = st.columns([1, 1, 1])
+        with col_y1:
+            year_curr = st.selectbox("比較対象年度（新）", years_avail[::-1], index=0, key="rank_curr")
+        with col_y2:
+            year_prev_options = [y for y in years_avail if y < year_curr]
+            year_prev = st.selectbox("比較元年度（旧）", year_prev_options[::-1], index=0, key="rank_prev")
+        with col_top:
+            top_n_change = st.slider("表示件数（上昇/下落それぞれ）", 5, 30, 15)
+
+        df_curr = df_ranked[df_ranked["年度"] == year_curr][["市区町村", "都道府県", "受入額_億円", "順位"]].rename(
+            columns={"受入額_億円": f"受入額_{year_curr}", "順位": f"順位_{year_curr}"}
+        )
+        df_prev = df_ranked[df_ranked["年度"] == year_prev][["市区町村", "都道府県", "受入額_億円", "順位"]].rename(
+            columns={"受入額_億円": f"受入額_{year_prev}", "順位": f"順位_{year_prev}"}
+        )
+        df_change = df_curr.merge(df_prev, on=["市区町村", "都道府県"], how="inner")
+        # 前年1億未満の自治体は変動率が極端になるため除外
+        df_change = df_change[df_change[f"受入額_{year_prev}"] >= 1]
+        df_change["順位変動"] = df_change[f"順位_{year_prev}"] - df_change[f"順位_{year_curr}"]
+        df_change["受入額変動_億円"] = (df_change[f"受入額_{year_curr}"] - df_change[f"受入額_{year_prev}"]).round(2)
+        df_change["受入額変動率"] = ((df_change["受入額変動_億円"] / df_change[f"受入額_{year_prev}"]) * 100).round(1)
+
+        # ── 散布図：前年順位 vs 今年順位 ───────────────────────
+        st.markdown(f"#### 順位の変化マップ（{year_prev}年度 → {year_curr}年度）")
+        st.caption("対角線より上 = 上昇、下 = 下落。丸の大きさ = 受入額")
+        df_scatter = df_change[df_change[f"受入額_{year_curr}"] > 1].copy()  # 1億以上のみ
+        fig_scatter = px.scatter(
+            df_scatter,
+            x=f"順位_{year_prev}",
+            y=f"順位_{year_curr}",
+            color="都道府県",
+            size=f"受入額_{year_curr}",
+            size_max=30,
+            hover_name="市区町村",
+            hover_data={
+                "受入額変動_億円": True,
+                "受入額変動率": True,
+                f"受入額_{year_curr}": True,
+                "都道府県": False,
+            },
+            labels={
+                f"順位_{year_prev}": f"{year_prev}年度 順位",
+                f"順位_{year_curr}": f"{year_curr}年度 順位",
+            },
+        )
+        # 対角線（変化なし）
+        max_rank = int(df_scatter[f"順位_{year_prev}"].max())
+        fig_scatter.add_shape(type="line", x0=1, y0=1, x1=max_rank, y1=max_rank,
+                              line=dict(dash="dash", color="gray", width=1))
+        fig_scatter.update_yaxes(autorange="reversed")
+        fig_scatter.update_xaxes(autorange="reversed")
+        fig_scatter.update_layout(height=480, margin=dict(t=10, b=10))
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+        # ── 上昇・下落ランキング ────────────────────────────────
+        col_up, col_down = st.columns(2)
+
+        with col_up:
+            st.markdown("#### 📈 急上昇トップ")
+            df_up = df_change.sort_values("順位変動", ascending=False).head(top_n_change)
+            df_up_disp = df_up[["市区町村", "都道府県", "順位変動", "受入額変動_億円", "受入額変動率",
+                                  f"受入額_{year_curr}"]].copy()
+            df_up_disp["順位変動"] = df_up_disp["順位変動"].apply(lambda x: f"▲{int(x)}")
+            df_up_disp["受入額変動率"] = df_up_disp["受入額変動率"].apply(lambda x: f"+{x}%")
+            st.dataframe(df_up_disp.rename(columns={
+                f"受入額_{year_curr}": "受入額（億円）",
+                "受入額変動_億円": "増加額（億円）",
+            }), use_container_width=True, hide_index=True)
+
+        with col_down:
+            st.markdown("#### 📉 急降下トップ")
+            df_down = df_change.sort_values("順位変動", ascending=True).head(top_n_change)
+            df_down_disp = df_down[["市区町村", "都道府県", "順位変動", "受入額変動_億円", "受入額変動率",
+                                     f"受入額_{year_curr}"]].copy()
+            df_down_disp["順位変動"] = df_down_disp["順位変動"].apply(lambda x: f"▼{abs(int(x))}")
+            df_down_disp["受入額変動率"] = df_down_disp["受入額変動率"].apply(lambda x: f"{x}%")
+            st.dataframe(df_down_disp.rename(columns={
+                f"受入額_{year_curr}": "受入額（億円）",
+                "受入額変動_億円": "増減額（億円）",
+            }), use_container_width=True, hide_index=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Tab 6: 都道府県勢力図
+# ═══════════════════════════════════════════════════════════════
+with tab6:
+    if df_ts.empty:
+        st.info("総務省Excelをサイドバーからアップロードしてパースするとこのタブが使えます。")
+    else:
+        st.subheader("🗾 都道府県の勢力図と県内の突出自治体")
+
+        df_pref_ts = (
+            df_ts.groupby(["都道府県", "年度"])["受入額_億円"]
+            .sum().reset_index()
+            .sort_values(["都道府県", "年度"])
+        )
+
+        # ── 都道府県別推移 ─────────────────────────────────────
+        st.markdown("#### 都道府県別 受入額の推移")
+
+        latest_yr = df_pref_ts["年度"].max()
+        top_prefs = (
+            df_pref_ts[df_pref_ts["年度"] == latest_yr]
+            .sort_values("受入額_億円", ascending=False)
+            .head(15)["都道府県"].tolist()
+        )
+        sel_prefs_map = st.multiselect(
+            "都道府県を選択（デフォルト: 受入額上位15）",
+            sorted(df_pref_ts["都道府県"].unique()),
+            default=top_prefs,
+            key="pref_map_sel",
+        )
+
+        df_pref_plot = df_pref_ts[df_pref_ts["都道府県"].isin(sel_prefs_map)]
+        fig_pref = px.line(
+            df_pref_plot, x="年度", y="受入額_億円", color="都道府県",
+            markers=True,
+            labels={"年度": "年度", "受入額_億円": "受入額合計（億円）"},
+        )
+        fig_pref.update_layout(height=400, margin=dict(t=10, b=10))
+        st.plotly_chart(fig_pref, use_container_width=True)
+
+        st.divider()
+
+        # ── 県内の突出自治体を探す ─────────────────────────────
+        st.markdown("#### 県内で突出している自治体を探す")
+        st.caption("県全体の成長率と比べて突出して伸びている自治体を検出します")
+
+        sel_pref_drill = st.selectbox(
+            "都道府県を選択",
+            sorted(df_ts["都道府県"].unique()),
+            index=sorted(df_ts["都道府県"].unique()).index("北海道"),
+            key="pref_drill",
+        )
+
+        col_yr1, col_yr2 = st.columns(2)
+        with col_yr1:
+            drill_year_curr = st.selectbox("比較年度（新）", years_avail[::-1], index=0, key="drill_curr")
+        with col_yr2:
+            drill_prev_opts = [y for y in years_avail if y < drill_year_curr]
+            drill_year_prev = st.selectbox("比較年度（旧）", drill_prev_opts[::-1], index=0, key="drill_prev")
+
+        df_drill = df_ts[df_ts["都道府県"] == sel_pref_drill].copy()
+
+        # 県全体の成長率
+        pref_curr = df_drill[df_drill["年度"] == drill_year_curr]["受入額_億円"].sum()
+        pref_prev = df_drill[df_drill["年度"] == drill_year_prev]["受入額_億円"].sum()
+        pref_growth = (pref_curr - pref_prev) / pref_prev * 100 if pref_prev > 0 else 0
+
+        st.metric(
+            f"{sel_pref_drill} 全体の成長率（{drill_year_prev}→{drill_year_curr}）",
+            f"{pref_growth:+.1f}%",
+            f"{pref_curr:.1f} 億円 → {pref_prev:.1f} 億円",
+        )
+
+        # 市区町村別の成長率
+        df_drill_curr = df_drill[df_drill["年度"] == drill_year_curr][["市区町村", "受入額_億円"]].rename(
+            columns={"受入額_億円": "受入額_new"}
+        )
+        df_drill_prev = df_drill[df_drill["年度"] == drill_year_prev][["市区町村", "受入額_億円"]].rename(
+            columns={"受入額_億円": "受入額_old"}
+        )
+        df_drill_merge = df_drill_curr.merge(df_drill_prev, on="市区町村", how="inner")
+        df_drill_merge["成長率(%)"] = (
+            (df_drill_merge["受入額_new"] - df_drill_merge["受入額_old"]) / df_drill_merge["受入額_old"] * 100
+        ).round(1)
+        df_drill_merge["vs県平均"] = (df_drill_merge["成長率(%)"] - pref_growth).round(1)
+        df_drill_merge = df_drill_merge.sort_values("成長率(%)", ascending=False)
+
+        # 散布図：県内自治体の成長率分布
+        fig_drill = px.bar(
+            df_drill_merge,
+            x="市区町村",
+            y="成長率(%)",
+            color="vs県平均",
+            color_continuous_scale="RdYlGn",
+            color_continuous_midpoint=0,
+            text="成長率(%)",
+            labels={"成長率(%)": f"成長率（{drill_year_prev}→{drill_year_curr}）"},
+            hover_data={"受入額_new": True, "受入額_old": True, "vs県平均": True},
+        )
+        fig_drill.add_hline(y=pref_growth, line_dash="dash", line_color="navy",
+                            annotation_text=f"県平均 {pref_growth:+.1f}%")
+        fig_drill.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+        fig_drill.update_layout(
+            height=max(400, len(df_drill_merge) * 18),
+            margin=dict(t=20, b=10),
+            xaxis_tickangle=-45,
+            coloraxis_showscale=False,
+        )
+        st.plotly_chart(fig_drill, use_container_width=True)
+
+        # 突出自治体ハイライト
+        outliers = df_drill_merge[df_drill_merge["vs県平均"] > 20].sort_values("vs県平均", ascending=False)
+        if not outliers.empty:
+            st.success(f"🔍 県平均を20%以上上回る自治体: {', '.join(outliers['市区町村'].tolist())}")
+
+        with st.expander("📋 全自治体データ"):
+            st.dataframe(
+                df_drill_merge.rename(columns={"受入額_new": f"受入額_{drill_year_curr}（億円）",
+                                                "受入額_old": f"受入額_{drill_year_prev}（億円）"}),
+                use_container_width=True, hide_index=True,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════
+# Tab 7: 経費・収支（旧Tab4）
+# ═══════════════════════════════════════════════════════════════
+# Tab 7: 経費・収支
+# ═══════════════════════════════════════════════════════════════
+with tab7:
     st.subheader("費目別 経費内訳（全国集計）")
 
     df_k = df_keihi.copy()
@@ -411,48 +741,35 @@ with tab4:
         st.plotly_chart(fig2, use_container_width=True)
         st.caption("50%を超える自治体は総務省の指定基準（5割ルール）違反の可能性あり")
 
-
-# ═══════════════════════════════════════════════════════════════
-# Tab 5: 都市流出
-# ═══════════════════════════════════════════════════════════════
-with tab5:
-    st.subheader("都市部の住民税流出・収支損失")
+    st.divider()
+    st.subheader("🏙️ 都市部の住民税流出・収支損失")
 
     df_r = df_ryushutsu.copy()
-
     df_tokyo = df_r[df_r["jichitai"] == "東京都"].sort_values("year")
     if not df_tokyo.empty:
-        fig = px.line(
+        fig_tok = px.line(
             df_tokyo, x="year", y="ryushutsu_oku", markers=True,
             labels={"year": "年度", "ryushutsu_oku": "流出額（億円）"},
             title="東京都 住民税流出額の推移",
         )
-        fig.update_traces(line_color="#e74c3c", marker_size=10)
-        fig.update_layout(height=280, margin=dict(t=40, b=10))
-        st.plotly_chart(fig, use_container_width=True)
+        fig_tok.update_traces(line_color="#e74c3c", marker_size=10)
+        fig_tok.update_layout(height=260, margin=dict(t=40, b=10))
+        st.plotly_chart(fig_tok, use_container_width=True)
 
-    st.divider()
-    st.markdown("#### 主要自治体の収支損失（最新年度）")
-
-    df_latest = (
+    df_latest_r = (
         df_r[df_r["jichitai"] != "東京都"]
         .sort_values("year", ascending=False)
         .drop_duplicates("jichitai")
         .sort_values("ryushutsu_oku", ascending=False)
     )
-
-    fig2 = px.bar(
-        df_latest, x="jichitai", y="ryushutsu_oku",
+    fig_loss = px.bar(
+        df_latest_r, x="jichitai", y="ryushutsu_oku",
         color="kofu_hokan",
         labels={"jichitai": "自治体", "ryushutsu_oku": "損失額（億円）", "kofu_hokan": "地方交付税補填"},
-        color_discrete_map={
-            "なし（不交付団体）": "#e74c3c",
-            "あり（交付団体・75%補填）": "#f39c12",
-        },
+        color_discrete_map={"なし（不交付団体）": "#e74c3c", "あり（交付団体・75%補填）": "#f39c12"},
         text="ryushutsu_oku",
     )
-    fig2.update_traces(texttemplate="%{text:,} 億円", textposition="outside")
-    fig2.update_layout(height=360, margin=dict(t=10, b=10))
-    st.plotly_chart(fig2, use_container_width=True)
-
-    st.info("🔴 不交付団体（東京23区・川崎市等）は補填ゼロ → 流出額の全額が実質減収\n\n🟡 交付団体（横浜・名古屋・大阪等）は75%が地方交付税で補填")
+    fig_loss.update_traces(texttemplate="%{text:,} 億円", textposition="outside")
+    fig_loss.update_layout(height=340, margin=dict(t=10, b=10))
+    st.plotly_chart(fig_loss, use_container_width=True)
+    st.info("🔴 不交付団体（東京23区・川崎市等）は補填ゼロ\n\n🟡 交付団体（横浜・名古屋・大阪等）は75%が地方交付税で補填")
