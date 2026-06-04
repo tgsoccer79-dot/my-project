@@ -4,8 +4,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
 import subprocess, sys
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -46,6 +44,8 @@ def calc_ranking(df_ts: pd.DataFrame) -> pd.DataFrame:
 @st.cache_data
 def calc_clusters(df_detail: pd.DataFrame, n_clusters: int = 5) -> pd.DataFrame:
     """2024年度の費目データをクラスタリング"""
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.cluster import KMeans
     feats = ["受入額_億円", "経費率合計", "ポータル費_億円"]
     df = df_detail[feats + ["都道府県", "市区町村"]].dropna().copy()
     X = StandardScaler().fit_transform(df[feats])
