@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SENTINEL=\"${HOME}/.claude/furusato-news-last-update\"; TODAY=$(date +%Y-%m-%d); DOW=$(date +%u); if [ ! -f \"$SENTINEL\" ] || [ \"$(cat $SENTINEL)\" != \"$TODAY\" ]; then if [ \"$DOW\" = \"1\" ]; then MSG=\"月曜日: 金〜日曜分のニュース更新がまだです。\"; else MSG=\"本日のニュース更新がまだです。\"; fi; echo \"{\\\"systemMessage\\\": \\\"📰 ふるさと納税 ${MSG} /update-news で更新できます。\\\"}\"; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
