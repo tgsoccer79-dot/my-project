@@ -61,6 +61,170 @@ DB_DELIVERY = "lhcloud_deli_data"
 DB_NOTE     = "※ 本DBはふるさと納税市場全体の約48%をカバー。総務省公開値との比較時は市場シェアを考慮すること。"
 
 
+def detect_db_result_type(df: pd.DataFrame) -> str:
+    """CSVの列名からどのクエリの結果かを自動判別する"""
+    cols = set(df.columns)
+    if "ポータル区分" in cols:
+        return "portal"
+    if "解析用カテゴリ" in cols or "カテゴリ" in cols:
+        return "category"
+    if "年月" in cols:
+        return "monthly"
+    if "種別" in cols and ("件数比率" in cols or "件数" in cols):
+        return "subscription"
+    if "寄附者都道府県" in cols:
+        return "demographics"
+    if "年度" in cols and "受付件数" in cols:
+        return "yearly"
+    return "unknown"
+
+
+DB_RESULT_LABELS = {
+    "portal":       "ポータル別内訳",
+    "category":     "返礼品カテゴリ別",
+    "monthly":      "月別トレンド",
+    "subscription": "定期便比率",
+    "demographics": "寄附者属性",
+    "yearly":       "年度別推移",
+    "unknown":      "不明（列名を確認してください）",
+}
+
+
+def generate_integrated_md(
+    pref: str, muni: str, muni_code: str,
+    public_metrics: dict,
+    db_results: dict,
+) -> str:
+    """公開データ + 内部DBデータを統合した分析レポートを生成"""
+    today = date.today().strftime("%Y年%m月%d日")
+    kifu   = public_metrics.get("受入額_億円", "N/A")
+    rank   = public_metrics.get("全国順位", "N/A")
+    growth = public_metrics.get("3年成長率", "N/A")
+    keihi  = public_metrics.get("経費率", "N/A")
+
+    kifu_str   = f"{kifu:.1f} 億円" if isinstance(kifu, float) else str(kifu)
+    growth_str = f"{growth:+.1f}% / 年" if isinstance(growth, float) else str(growth)
+    keihi_str  = f"{keihi:.1f}%" if isinstance(keihi, float) else str(keihi)
+
+    # 内部DBセクション生成
+    db_sections = []
+
+    # 年度別推移 → 公開データとのカバー率照合
+    if "yearly" in db_results:
+        df_y = db_results["yearly"]
+        # 最新年度のDB件数を公開データと照合してカバー率を推定
+        db_section = "### 内部DB — 年度別推移\n\n"
+        db_section += df_y.to_markdown(index=False) + "\n\n"
+        if not df_y.empty and "寄附金額合計" in df_y.columns:
+            latest_db = df_y.sort_values("年度").iloc[-1]
+            db_kifu_oku = latest_db["寄附金額合計"] / 1e8 if latest_db["寄附金額合計"] > 1000 else latest_db["寄附金額合計"]
+            if isinstance(kifu, float) and kifu > 0:
+                coverage = db_kifu_oku / kifu * 100
+                db_section += f"> DB実績 {db_kifu_oku:.1f} 億円 ÷ 総務省公開値 {kifu:.1f} 億円 ＝ **当自治体のDB捕捉率 {coverage:.1f}%**\n"
+        db_sections.append(db_section)
+
+    # ポータル別内訳
+    if "portal" in db_results:
+        df_p = db_results["portal"]
+        db_sections.append("### 内部DB — ポータル別内訳\n\n" + df_p.to_markdown(index=False) + "\n")
+
+    # 返礼品カテゴリ別
+    if "category" in db_results:
+        df_c = db_results["category"]
+        db_sections.append("### 内部DB — 返礼品カテゴリ別実績\n\n" + df_c.to_markdown(index=False) + "\n")
+
+    # 月別トレンド
+    if "monthly" in db_results:
+        df_m = db_results["monthly"]
+        db_sections.append("### 内部DB — 月別受付トレンド\n\n" + df_m.to_markdown(index=False) + "\n")
+
+    # 定期便比率
+    if "subscription" in db_results:
+        df_s = db_results["subscription"]
+        db_sections.append("### 内部DB — 定期便比率\n\n" + df_s.to_markdown(index=False) + "\n")
+
+    # 寄附者属性
+    if "demographics" in db_results:
+        df_d = db_results["demographics"]
+        db_sections.append("### 内部DB — 寄附者属性（上位20件）\n\n" + df_d.head(20).to_markdown(index=False) + "\n")
+
+    db_block = "\n".join(db_sections) if db_sections else "_（内部DBデータ未取り込み）_"
+
+    # 統合仮説
+    hypotheses = []
+    if "portal" in db_results:
+        df_p = db_results["portal"]
+        if not df_p.empty and "ポータル区分" in df_p.columns:
+            top_portal = df_p.sort_values("件数", ascending=False).iloc[0]["ポータル区分"] if "件数" in df_p.columns else "不明"
+            hypotheses.append(f"ポータル構成: 最大シェアは **{top_portal}**。集中リスクと2025年10月以降のポータル変化を追跡すること")
+    if "category" in db_results:
+        df_c = db_results["category"]
+        if not df_c.empty:
+            ctg_col = "解析用カテゴリ" if "解析用カテゴリ" in df_c.columns else "カテゴリ"
+            amt_col = "寄附金額合計" if "寄附金額合計" in df_c.columns else "金額合計"
+            if ctg_col in df_c.columns and amt_col in df_c.columns:
+                top_ctg = df_c.sort_values(amt_col, ascending=False).iloc[0][ctg_col]
+                hypotheses.append(f"返礼品カテゴリ: 最大カテゴリは **{top_ctg}**。全国人気カテゴリ（米・牛肉・日用品）との重複・差別化を検討")
+    if "subscription" in db_results:
+        df_s = db_results["subscription"]
+        if not df_s.empty and "種別" in df_s.columns and "件数比率" in df_s.columns:
+            teiki = df_s[df_s["種別"] == "定期便"]["件数比率"].values
+            if len(teiki) > 0:
+                hypotheses.append(f"定期便比率: **{teiki[0]:.1f}%**。全国平均と比較してリピーター施策の余地を評価")
+    if isinstance(growth, float) and growth > 10:
+        hypotheses.append(f"成長率 {growth:+.1f}%/年 — 公開データで確認済み。内部DBのポータル別・月別で牽引要因を特定すること")
+    if not hypotheses:
+        hypotheses.append("内部DB取り込みデータから特段の異常値なし。詳細分析を追加で実施推奨")
+    hyp_text = "\n".join(f"{i+1}. {h}" for i, h in enumerate(hypotheses))
+
+    has_db = bool(db_sections)
+    db_count = len(db_results)
+
+    return f"""# ふるさと納税 統合分析レポート
+> 生成日: {today}　／　対象: {pref} {muni}（自治体コード: `{muni_code}`）
+> **公開データ（総務省）＋ 内部DBデータ（{db_count}クエリ）の統合レポート**
+
+---
+
+## 1. 公開データによる観察（総務省現況調査）
+
+| 指標 | 値 |
+|---|---|
+| 受入額（2024年度） | {kifu_str} |
+| 全国順位（2024年度） | {rank} 位 |
+| 3年平均成長率 | {growth_str} |
+| 経費率（2024年度） | {keihi_str} |
+
+> {DB_NOTE}
+
+---
+
+## 2. 内部DBデータによる観察
+
+{db_block}
+
+---
+
+## 3. 統合仮説（公開データ × 内部DB）
+
+{hyp_text}
+
+---
+
+## 4. 次のアクション候補
+
+- [ ] ポータル別シェアと総務省「ポータル費率」を突合して費用対効果を算出
+- [ ] 返礼品カテゴリの伸び率を公開データの成長率と比較
+- [ ] 定期便比率が低い場合はリピーター施策の余地を検討
+- [ ] 月別トレンドで2025年10月ポイント禁止後の影響を定量化
+- [ ] 類似自治体（ベンチマーク）の内部DB実績と横並び比較
+
+---
+*このレポートはふるさと納税分析ダッシュボードにより自動生成されました。*
+*公開データ出典: 総務省現況調査 ／ 内部DB: {DB_TAX} / {DB_DELIVERY}*
+"""
+
+
 def generate_municipality_md(
     pref: str, muni: str, muni_code: str,
     metrics: dict,
@@ -760,6 +924,186 @@ with tab3:
             with col_md2:
                 if st.toggle("プレビューを表示", key="md_preview"):
                     st.markdown(md_content)
+
+            # ─── 内部DBデータ取り込み ────────────────────────────────
+            st.divider()
+            st.markdown("#### 🔄 内部DBデータを取り込んで統合分析する")
+            st.caption(
+                "上のMDレポートのSQLを社内DBで実行し、結果CSVをここにアップロードすると"
+                "公開データと統合して可視化・統合レポートを出力できます。"
+            )
+
+            uploaded_files = st.file_uploader(
+                "内部DBのクエリ結果CSVをアップロード（複数同時可）",
+                type=["csv"],
+                accept_multiple_files=True,
+                key=f"db_upload_{sel_muni}",
+            )
+
+            db_results: dict = {}
+            if uploaded_files:
+                for uf in uploaded_files:
+                    try:
+                        df_up = pd.read_csv(uf)
+                        dtype = detect_db_result_type(df_up)
+                        db_results[dtype] = df_up
+                        label = DB_RESULT_LABELS.get(dtype, dtype)
+                        if dtype == "unknown":
+                            st.warning(f"⚠️ {uf.name}: 列名を認識できませんでした（{list(df_up.columns)[:5]}…）")
+                        else:
+                            st.success(f"✅ {uf.name} → **{label}** として取り込みました")
+                    except Exception as e:
+                        st.error(f"❌ {uf.name}: {e}")
+
+            if db_results:
+                st.markdown("---")
+
+                # ── ポータル別内訳
+                if "portal" in db_results:
+                    st.markdown("##### 📡 ポータル別内訳（内部DB）")
+                    df_p = db_results["portal"]
+                    amt_col = "金額合計" if "金額合計" in df_p.columns else df_p.select_dtypes("number").columns[0]
+                    fig_p = px.bar(
+                        df_p.sort_values(amt_col, ascending=True),
+                        x=amt_col, y="ポータル区分", orientation="h",
+                        color=amt_col, color_continuous_scale="Blues",
+                        text=amt_col, labels={amt_col: "金額合計（円）"},
+                    )
+                    fig_p.update_traces(texttemplate="%{text:,.0f}", textposition="outside")
+                    fig_p.update_layout(height=320, margin=dict(t=10, b=10), coloraxis_showscale=False)
+                    st.plotly_chart(fig_p, use_container_width=True)
+
+                # ── 返礼品カテゴリ別
+                if "category" in db_results:
+                    st.markdown("##### 🎁 返礼品カテゴリ別実績（内部DB）")
+                    df_c = db_results["category"]
+                    ctg_col = "解析用カテゴリ" if "解析用カテゴリ" in df_c.columns else "カテゴリ"
+                    amt_col = "寄附金額合計" if "寄附金額合計" in df_c.columns else "金額合計"
+                    if ctg_col in df_c.columns and amt_col in df_c.columns:
+                        fig_c = px.bar(
+                            df_c.sort_values(amt_col, ascending=True).head(15),
+                            x=amt_col, y=ctg_col, orientation="h",
+                            color=amt_col, color_continuous_scale="Greens",
+                            text=amt_col,
+                        )
+                        fig_c.update_traces(texttemplate="%{text:,.0f}", textposition="outside")
+                        fig_c.update_layout(height=380, margin=dict(t=10, b=10), coloraxis_showscale=False)
+                        st.plotly_chart(fig_c, use_container_width=True)
+
+                # ── 月別トレンド（公開データの寄附額推移と並列）
+                if "monthly" in db_results:
+                    st.markdown("##### 📅 月別受付トレンド（内部DB）")
+                    df_mo = db_results["monthly"]
+                    if "年月" in df_mo.columns and "件数" in df_mo.columns:
+                        fig_mo = go.Figure()
+                        fig_mo.add_trace(go.Bar(
+                            x=df_mo["年月"], y=df_mo["件数"],
+                            name="受付件数", marker_color="#3498db", opacity=0.7,
+                        ))
+                        if "金額合計" in df_mo.columns:
+                            fig_mo.add_trace(go.Scatter(
+                                x=df_mo["年月"], y=df_mo["金額合計"],
+                                name="金額合計（円）", yaxis="y2",
+                                line=dict(color="#e74c3c", width=2), mode="lines+markers",
+                            ))
+                            fig_mo.update_layout(
+                                yaxis2=dict(overlaying="y", side="right", title="金額合計（円）"),
+                            )
+                        # キャンペーン日注記
+                        fig_mo.add_annotation(
+                            x=df_mo["年月"].iloc[-1], y=0,
+                            text="5・10・15・20・25・30日は楽天キャンペーン多",
+                            showarrow=False, font_size=9, yref="paper", yanchor="bottom",
+                        )
+                        fig_mo.update_layout(height=320, margin=dict(t=10, b=30),
+                                             xaxis_tickangle=-45, barmode="overlay")
+                        st.plotly_chart(fig_mo, use_container_width=True)
+
+                # ── 定期便比率
+                if "subscription" in db_results:
+                    st.markdown("##### 🔁 定期便比率（内部DB）")
+                    df_s = db_results["subscription"]
+                    amt_col = "金額合計" if "金額合計" in df_s.columns else df_s.select_dtypes("number").columns[0]
+                    fig_s = px.pie(df_s, names="種別", values=amt_col, hole=0.45,
+                                   color_discrete_sequence=["#2ecc71", "#bdc3c7"])
+                    fig_s.update_layout(height=280, margin=dict(t=10, b=10))
+                    st.plotly_chart(fig_s, use_container_width=True)
+
+                # ── 年度別推移 × 公開データ照合
+                if "yearly" in db_results:
+                    st.markdown("##### 📈 年度別推移 — 内部DB vs 公開データ（DB捕捉率）")
+                    df_yr_db = db_results["yearly"].copy()
+                    if "年度" in df_yr_db.columns and "寄附金額合計" in df_yr_db.columns:
+                        df_yr_db["DB金額（億円）"] = df_yr_db["寄附金額合計"] / 1e8
+                        fig_yr = go.Figure()
+                        # 公開データ
+                        fig_yr.add_trace(go.Bar(
+                            x=[f"{int(y)}年度" for y in df_muni_ts["年度"]],
+                            y=df_muni_ts["受入額_億円"],
+                            name="総務省公開値（億円）", marker_color="#95a5a6", opacity=0.6,
+                        ))
+                        # 内部DB
+                        fig_yr.add_trace(go.Bar(
+                            x=[f"{int(y)}年度" for y in df_yr_db["年度"]],
+                            y=df_yr_db["DB金額（億円）"],
+                            name="内部DB実績（億円）", marker_color="#2ecc71", opacity=0.9,
+                        ))
+                        fig_yr.update_layout(
+                            barmode="overlay", height=300, margin=dict(t=10, b=10),
+                            legend=dict(orientation="h", y=1.1),
+                        )
+                        st.plotly_chart(fig_yr, use_container_width=True)
+                        # 捕捉率計算
+                        common_yrs = set(df_yr_db["年度"]) & set(df_muni_ts["年度"])
+                        if common_yrs:
+                            latest_yr_common = max(common_yrs)
+                            db_oku = df_yr_db[df_yr_db["年度"] == latest_yr_common]["DB金額（億円）"].values[0]
+                            pub_oku = df_muni_ts[df_muni_ts["年度"] == latest_yr_common]["受入額_億円"].values[0]
+                            coverage = db_oku / pub_oku * 100 if pub_oku > 0 else 0
+                            st.info(
+                                f"📊 {int(latest_yr_common)}年度の当自治体DBカバー率: "
+                                f"**{coverage:.1f}%**"
+                                f"（DB {db_oku:.1f}億円 ÷ 総務省 {pub_oku:.1f}億円）"
+                                f" ／ 全国平均は約48%"
+                            )
+
+                # ── 寄附者属性
+                if "demographics" in db_results:
+                    st.markdown("##### 👥 寄附者属性（内部DB）")
+                    df_dem = db_results["demographics"]
+                    if "寄附者都道府県" in df_dem.columns and "金額合計" in df_dem.columns:
+                        df_pref_dem = (df_dem.groupby("寄附者都道府県")["金額合計"]
+                                       .sum().reset_index().sort_values("金額合計", ascending=False).head(15))
+                        fig_dem = px.bar(df_pref_dem, x="寄附者都道府県", y="金額合計",
+                                         color="金額合計", color_continuous_scale="Blues",
+                                         labels={"金額合計": "金額合計（円）"})
+                        fig_dem.update_layout(height=300, margin=dict(t=10, b=10),
+                                              xaxis_tickangle=-45, coloraxis_showscale=False)
+                        st.plotly_chart(fig_dem, use_container_width=True)
+
+                # ── 統合レポート出力
+                st.divider()
+                st.markdown("##### 📋 統合レポートを出力（公開データ＋内部DB）")
+                integrated_md = generate_integrated_md(
+                    sel_pref, sel_muni, muni_code_val,
+                    md_metrics, db_results,
+                )
+                col_int1, col_int2 = st.columns([1, 3])
+                with col_int1:
+                    st.download_button(
+                        label="📥 統合MDをダウンロード",
+                        data=integrated_md,
+                        file_name=f"integrated_{sel_pref}_{sel_muni}.md",
+                        mime="text/markdown",
+                    )
+                with col_int2:
+                    if st.toggle("統合レポートをプレビュー", key="int_preview"):
+                        st.markdown(integrated_md)
+            else:
+                st.info(
+                    "💡 MDレポートのSQL（クエリ3-1〜3-6）を社内DBで実行し、"
+                    "結果CSVをここにアップロードすると統合分析が始まります。"
+                )
 
             with st.expander("年度別データ（全年度）"):
                 st.dataframe(df_muni_ts[["年度ラベル", "受入額_億円", "受入件数", "順位"]]
