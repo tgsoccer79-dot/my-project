@@ -1,0 +1,4 @@
+year,kifu_total_oku,keihi_total_oku,keihi_rate_pct,henreihin_oku,henreihin_rate_pct,soryo_oku,soryo_rate_pct,koho_oku,koho_rate_pct,kessai_oku,kessai_rate_pct,jimu_oku,jimu_rate_pct,portal_fee_oku,portal_fee_rate_pct,jiyu_zaisgen_oku,source,fetched_at
+2022,9654,4517,46.8,2687,27.8,732,7.6,67,0.7,197,2.0,834,8.6,,,,総務省 令和5年度実施 現況調査,2026-06-03
+2023,11175,5429,48.6,3027,27.1,801,7.2,68,0.6,208,1.9,1323,11.8,,,,総務省 令和6年度実施 現況調査,2026-06-03
+2024,12728,5901,46.4,3208,25.2,733,5.8,66,0.5,218,1.7,1676,13.2,1656,13.0,6827,総務省 令和7年度実施 現況調査,2026-06-03
