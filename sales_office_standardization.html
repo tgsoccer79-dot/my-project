@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>受託業務 標準化プロジェクト | 宮崎営業所</title>
+<style>
+  :root {
+    --blue: #2563eb;
+    --blue-light: #eff6ff;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --orange: #ea580c;
+    --orange-light: #fff7ed;
+    --red: #dc2626;
+    --gray: #64748b;
+    --gray-light: #f8fafc;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; font-size: 14px; color: #1e293b; background: #f1f5f9; }
+
+  /* Header */
+  .app-header { background: #1e293b; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  .app-header h1 { font-size: 18px; font-weight: 700; }
+  .app-header .sub { font-size: 12px; color: #94a3b8; margin-left: auto; }
+  .confidential-badge { background: #dc2626; color: white; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; letter-spacing: 1px; }
+
+  /* Tab nav */
+  .tab-nav { background: white; border-bottom: 2px solid var(--border); display: flex; padding: 0 24px; }
+  .tab-btn { padding: 14px 20px; font-size: 14px; font-weight: 600; color: var(--gray); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-btn:hover:not(.active) { color: #334155; }
+
+  /* Main layout */
+  .tab-content { display: none; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  .tab-content.active { display: block; }
+
+  /* Cards */
+  .card { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 20px; }
+  .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .card-header h2 { font-size: 15px; font-weight: 700; }
+  .card-body { padding: 20px; }
+
+  /* Category badge */
+  .cat-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; }
+  .cat-1 { background: #dbeafe; color: #1d4ed8; }
+  .cat-2 { background: #dcfce7; color: #15803d; }
+  .cat-3 { background: #fef3c7; color: #b45309; }
+  .cat-4 { background: #fce7f3; color: #be185d; }
+  .cat-5 { background: #ede9fe; color: #6d28d9; }
+
+  /* Status indicator */
+  .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+  .dot-standard { background: #16a34a; }
+  .dot-diff { background: #ea580c; }
+  .dot-none { background: #94a3b8; }
+  .dot-pending { background: #d97706; }
+
+  /* Matrix table */
+  .matrix-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .matrix-table th { background: #f8fafc; padding: 10px 12px; text-align: center; font-weight: 600; border: 1px solid var(--border); font-size: 12px; }
+  .matrix-table th.item-col { text-align: left; width: 220px; }
+  .matrix-table th.standard-col { background: #1e293b; color: white; }
+  .matrix-table td { padding: 10px 12px; border: 1px solid var(--border); vertical-align: top; }
+  .matrix-table td.item-cell { font-weight: 500; background: #fafafa; font-size: 12px; }
+  .matrix-table td.standard-cell { background: var(--blue-light); font-size: 12px; }
+  .matrix-table .cat-row td { font-weight: 700; font-size: 13px; }
+  .matrix-table .cat-row-1 td { background: #dbeafe; }
+  .matrix-table .cat-row-2 td { background: #dcfce7; }
+  .matrix-table .cat-row-3 td { background: #fef3c7; }
+  .matrix-table .cat-row-4 td { background: #fce7f3; }
+  .matrix-table .cat-row-5 td { background: #ede9fe; }
+
+  /* Municipality cell */
+  .muni-cell { display: flex; flex-direction: column; gap: 4px; }
+  .muni-cell .answer-text { font-size: 12px; color: #334155; min-height: 20px; }
+  .muni-cell .status-select { font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; cursor: pointer; width: 100%; }
+  .status-circle { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; font-size: 14px; font-weight: 700; }
+  .s-standard { background: #dcfce7; color: #15803d; }
+  .s-diff { background: #ffedd5; color: #ea580c; }
+  .s-none { background: #f1f5f9; color: #94a3b8; }
+  .s-pending { background: #fef9c3; color: #ca8a04; }
+
+  /* Answer input area */
+  .answer-input { width: 100%; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; resize: vertical; min-height: 40px; font-family: inherit; }
+  .answer-input:focus { outline: none; border-color: var(--blue); }
+
+  /* Edit mode toggle */
+  .edit-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .toggle-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; cursor: pointer; }
+  .toggle-btn.primary { background: var(--blue); color: white; border-color: var(--blue); }
+  .toggle-btn.secondary { background: white; color: var(--gray); }
+
+  /* Legend */
+  .legend { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gray); }
+
+  /* Municipality filter */
+  .muni-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .muni-chip { padding: 6px 12px; border-radius: 20px; border: 2px solid var(--border); font-size: 12px; font-weight: 600; cursor: pointer; background: white; transition: all 0.15s; }
+  .muni-chip.selected { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
+
+  /* Progress board */
+  .phase-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .phase-card { border-radius: 10px; padding: 16px; border: 2px solid; }
+  .phase-1 { border-color: #2563eb; background: #eff6ff; }
+  .phase-2 { border-color: #16a34a; background: #f0fdf4; }
+  .phase-3 { border-color: #ea580c; background: #fff7ed; }
+  .phase-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .phase-1 .phase-label { color: #1d4ed8; }
+  .phase-2 .phase-label { color: #15803d; }
+  .phase-3 .phase-label { color: #c2410c; }
+  .phase-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .phase-period { font-size: 12px; color: var(--gray); margin-bottom: 12px; }
+  .phase-progress { height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; margin-bottom: 8px; }
+  .phase-progress-bar { height: 100%; border-radius: 4px; transition: width 0.4s; }
+  .phase-1 .phase-progress-bar { background: #2563eb; }
+  .phase-2 .phase-progress-bar { background: #16a34a; }
+  .phase-3 .phase-progress-bar { background: #ea580c; }
+  .phase-progress-text { font-size: 11px; color: var(--gray); text-align: right; }
+
+  /* Task list */
+  .task-list { display: flex; flex-direction: column; gap: 8px; }
+  .task-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: white; border-radius: 8px; border: 1px solid var(--border); }
+  .task-check { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border); cursor: pointer; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .task-check.done { background: var(--green); border-color: var(--green); color: white; font-size: 11px; }
+  .task-check.in-progress { background: #fbbf24; border-color: #fbbf24; }
+  .task-info { flex: 1; }
+  .task-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .task-meta { font-size: 11px; color: var(--gray); }
+  .task-status-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; cursor: pointer; border: none; }
+  .badge-todo { background: #f1f5f9; color: #64748b; }
+  .badge-inprogress { background: #fef9c3; color: #854d0e; }
+  .badge-done { background: #dcfce7; color: #15803d; }
+  .badge-blocked { background: #fee2e2; color: #b91c1c; }
+
+  /* Hearing status per municipality */
+  .hearing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .hearing-card { padding: 14px; border-radius: 8px; border: 1px solid var(--border); background: white; }
+  .hearing-muni-name { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+  .hearing-status-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .hearing-status-label { font-size: 12px; color: var(--gray); }
+  .status-pill { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 10px; cursor: pointer; border: 1px solid; }
+  .pill-todo { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+  .pill-sent { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+  .pill-collected { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+  .pill-done { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+  .hearing-note { width: 100%; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; margin-top: 6px; font-family: inherit; resize: none; height: 48px; }
+
+  /* Summary bar */
+  .summary-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .summary-item { background: white; border-radius: 8px; padding: 14px 16px; border: 1px solid var(--border); text-align: center; }
+  .summary-num { font-size: 28px; font-weight: 800; margin-bottom: 2px; }
+  .summary-label { font-size: 11px; color: var(--gray); }
+  .num-standard { color: #16a34a; }
+  .num-diff { color: #ea580c; }
+  .num-none { color: #94a3b8; }
+  .num-pending { color: #d97706; }
+
+  /* Diff detail panel */
+  .diff-panel { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+  .diff-panel h3 { font-size: 13px; font-weight: 700; color: #c2410c; margin-bottom: 10px; }
+  .diff-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; font-size: 12px; }
+  .diff-tag { flex-shrink: 0; background: #ffedd5; color: #c2410c; font-weight: 700; font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+
+  /* Timeline */
+  .timeline { display: flex; gap: 0; margin-bottom: 20px; }
+  .timeline-month { flex: 1; text-align: center; }
+  .timeline-month-label { font-size: 11px; font-weight: 700; padding: 6px 2px; background: #1e293b; color: white; border-right: 1px solid #334155; }
+  .timeline-month:first-child .timeline-month-label { border-radius: 6px 0 0 0; }
+  .timeline-month:last-child .timeline-month-label { border-right: none; border-radius: 0 6px 0 0; }
+  .timeline-row { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); height: 28px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+  .tl-now { background: #fef08a; }
+  .tl-phase1 { background: #bfdbfe; }
+  .tl-phase2 { background: #bbf7d0; }
+  .tl-phase3 { background: #fed7aa; }
+  .tl-busy-high { background: #fca5a5; opacity: 0.7; }
+  .tl-event { background: #e0e7ff; }
+  .tl-caution { background: #fde68a; opacity: 0.8; }
+  .timeline-label { font-size: 11px; text-align: left; padding: 4px 8px; color: var(--gray); background: #f8fafc; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); font-weight: 600; width: 110px; flex-shrink: 0; }
+  .tl-row-wrapper { display: flex; }
+
+  /* Save indicator */
+  .save-indicator { font-size: 11px; color: var(--green); margin-left: auto; opacity: 0; transition: opacity 0.5s; }
+  .save-indicator.show { opacity: 1; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .phase-grid { grid-template-columns: 1fr; }
+    .hearing-grid { grid-template-columns: repeat(2, 1fr); }
+    .summary-bar { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:2px;">シフトプラス 宮崎営業所</div>
+    <h1>受託業務 標準化プロジェクト</h1>
+  </div>
+  <span class="confidential-badge">CONFIDENTIAL</span>
+  <div class="sub">2026年6月 ／ Phase 1 進行中</div>
+</div>
+
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('matrix')">📊 差異分析マトリクス</button>
+  <button class="tab-btn" onclick="switchTab('progress')">✅ 進捗管理ボード</button>
+  <button class="tab-btn" onclick="switchTab('hearing')">📋 ヒアリング管理</button>
+</div>
+
+<!-- ====== TAB 1: MATRIX ====== -->
+<div id="tab-matrix" class="tab-content active">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <div class="legend">
+      <span class="legend-item"><span class="status-circle s-standard">●</span> 標準と同じ</span>
+      <span class="legend-item"><span class="status-circle s-diff">▲</span> 差異あり</span>
+      <span class="legend-item"><span class="status-circle s-none">─</span> 対応なし</span>
+      <span class="legend-item"><span class="status-circle s-pending">？</span> ヒアリング中</span>
+    </div>
+    <button class="toggle-btn primary" id="editBtn" onclick="toggleEdit()">✏️ 入力モード</button>
+    <span class="save-indicator" id="saveIndicator">💾 保存しました</span>
+  </div>
+
+  <div id="summaryBar" class="summary-bar">
+    <div class="summary-item"><div class="summary-num num-standard" id="cnt-standard">0</div><div class="summary-label">● 標準と同じ</div></div>
+    <div class="summary-item"><div class="summary-num num-diff" id="cnt-diff">0</div><div class="summary-label">▲ 差異あり</div></div>
+    <div class="summary-item"><div class="summary-num num-none" id="cnt-none">0</div><div class="summary-label">─ 対応なし</div></div>
+    <div class="summary-item"><div class="summary-num num-pending" id="cnt-pending">0</div><div class="summary-label">？ ヒアリング中</div></div>
+  </div>
+
+  <div id="diffPanel" class="diff-panel" style="display:none;">
+    <h3>▲ 差異ありの項目一覧</h3>
+    <div id="diffList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding:0;overflow-x:auto;">
+      <table class="matrix-table" id="matrixTable">
+        <thead>
+          <tr>
+            <th class="item-col">業務カテゴリ / 確認事項</th>
+            <th class="standard-col">宮崎市（★標準）</th>
+            <th>港区</th>
+            <th>生駒市</th>
+            <th>高千穂町</th>
+            <th>三木町</th>
+            <th>国富町</th>
+            <th>串間市</th>
+          </tr>
+        </thead>
+        <tbody id="matrixBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== TAB 2: PROGRESS ====== -->
+<div id="tab-progress" class="tab-content">
+  <div class="phase-grid">
+    <div class="phase-card phase-1">
+      <div class="phase-label">Phase 1</div>
+      <div class="phase-title">業務の標準化・差異の明文化</div>
+      <div class="phase-period">6月〜7月末</div>
+      <div class="phase-progress"><div class="phase-progress-bar" id="p1bar" style="width:20%"></div></div>
+      <div class="phase-progress-text" id="p1text">20%</div>
+    </div>
+    <div class="phase-card phase-2">
+      <div class="phase-label">Phase 2</div>
+      <div class="phase-title">横断体制の設計・研修・運用開始</div>
+      <div class="phase-period">8月〜9月末</div>
+      <div class="phase-progress"><div class="phase-progress-bar" id="p2bar" style="width:0%"></div></div>
+      <div class="phase-progress-text" id="p2text">0%</div>
+    </div>
+    <div class="phase-card phase-3">
+      <div class="phase-label">Phase 3</div>
+      <div class="phase-title">寄附額増へのリソース全投入</div>
+      <div class="phase-period">10月〜（12月最大化）</div>
+      <div class="phase-progress"><div class="phase-progress-bar" id="p3bar" style="width:0%"></div></div>
+      <div class="phase-progress-text" id="p3text">0%</div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>📅 2026年度スケジュール</h2></div>
+    <div class="card-body" style="overflow-x:auto;padding:0;">
+      <div style="display:flex;min-width:700px;">
+        <div style="width:110px;"></div>
+        <div class="timeline" style="flex:1;">
+          <div class="timeline-month"><div class="timeline-month-label">6月<br>NOW</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">7月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">8月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">9月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">10月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">11月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">12月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">1月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">2月</div></div>
+          <div class="timeline-month"><div class="timeline-month-label">3月</div></div>
+        </div>
+      </div>
+      <div id="timelineRows"></div>
+    </div>
+  </div>
+
+  <!-- Task list -->
+  <div class="card">
+    <div class="card-header"><h2>📌 タスク一覧</h2><span style="font-size:12px;color:var(--gray);margin-left:8px;">クリックでステータス変更</span></div>
+    <div class="card-body">
+      <div class="task-list" id="taskList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== TAB 3: HEARING ====== -->
+<div id="tab-hearing" class="tab-content">
+  <div class="card">
+    <div class="card-header"><h2>📋 自治体別 ヒアリング進捗管理</h2></div>
+    <div class="card-body">
+      <div class="hearing-grid" id="hearingGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== DATA =====================
+const MUNICIPALITIES = ['港区','生駒市','高千穂町','三木町','国富町','串間市'];
+
+const MATRIX_DATA = [
+  {
+    category: '① 寄附受付・データ管理',
+    catClass: 'cat-row-1',
+    items: [
+      {
+        label: '使用ポータルサイト・取込方式',
+        standard: '12サイト（楽天API・チョイスAPI・Yahoo!API・さとふるCSV・ふるなびCSV・ANACSVV・百選CSV・AmazonCSV・カブアンドCSV 等）',
+        key: 'portal_method'
+      },
+      {
+        label: '取り込み作業の頻度',
+        standard: '毎日（営業日）',
+        key: 'import_freq'
+      },
+      {
+        label: '市内在住者チェック・郵振有無',
+        standard: '必要（システム自動停止あり。隣接地名は手動確認） ／ 郵振あり（月2回・中旬と月末に突合）',
+        key: 'resident_check'
+      },
+      {
+        label: 'ワンストップオンライン申請対応',
+        standard: 'あり（motiONE使用）',
+        key: 'wanstop'
+      },
+      {
+        label: 'サンクスメール送信',
+        standard: 'あり（取込後に送信）',
+        key: 'thanks_mail'
+      },
+    ]
+  },
+  {
+    category: '② 配送・出荷管理',
+    catClass: 'cat-row-2',
+    items: [
+      {
+        label: '伝票発行方式・出荷依頼頻度',
+        standard: '弊社発行（ヤマト連携）が基本 ／ 週2回（火曜・木曜）',
+        key: 'delivery_freq'
+      },
+      {
+        label: 'ヤマト以外の配送業者',
+        standard: 'ヤマト中心（一部事業者は自社手配）',
+        key: 'other_delivery'
+      },
+      {
+        label: '出荷期限フォロー方法',
+        standard: 'チェックシートで毎日管理（メール→電話→訪問の段階フォロー）',
+        key: 'deadline_follow'
+      },
+      {
+        label: 'ガイドライン違反管理',
+        standard: 'あり（点数制、一定点数超で受注停止）',
+        key: 'guideline_vio'
+      },
+      {
+        label: '書類印刷・郵送対応',
+        standard: 'あり（弊社で印刷・重量チェック・郵送まで対応）',
+        key: 'print_mail'
+      },
+      {
+        label: '配送自粛期間設定',
+        standard: 'あり（年末年始・GW・お盆の3期間）',
+        key: 'delivery_pause'
+      },
+    ]
+  },
+  {
+    category: '③ 返礼品登録・在庫管理',
+    catClass: 'cat-row-3',
+    items: [
+      {
+        label: '承認フロー・使用ツール',
+        standard: 'SP管理シートへの貼付＋backlogで掲載依頼',
+        key: 'approval_flow'
+      },
+      {
+        label: '返礼品登録担当者・制限',
+        standard: 'マスタ整合・附番等は限定スタッフのみ対応',
+        key: 'reg_staff'
+      },
+      {
+        label: '返礼品マスタ一元管理',
+        standard: 'あり（返礼品マスタで全品の稼働・在庫を一元管理）',
+        key: 'master_mgmt'
+      },
+      {
+        label: '掲載サイト数・AmazonFBA有無',
+        standard: '計12サイト ／ FBAあり（冷蔵・冷凍品は事前申請必須）',
+        key: 'site_count'
+      },
+      {
+        label: '在庫管理頻度・方法',
+        standard: '朝夕2回（売り切れ防止・機会損失防止のため日次調整）',
+        key: 'stock_freq'
+      },
+      {
+        label: '提供価格・寄附金額マスタ管理',
+        standard: '自治体提供のExcelを使用（SP上での書き換え禁止）',
+        key: 'price_master'
+      },
+    ]
+  },
+  {
+    category: '④ サイト管理・広告',
+    catClass: 'cat-row-4',
+    items: [
+      {
+        label: 'ページ作成・修正担当',
+        standard: '全サイト弊社対応',
+        key: 'page_mgmt'
+      },
+      {
+        label: 'CSV一括作業',
+        standard: 'あり（月次在庫投入・繁忙期前の大量修正）',
+        key: 'csv_bulk'
+      },
+      {
+        label: '広告運用種別',
+        standard: 'あり（楽天RPP・チョイス/カブアンド/ふるなびの検索連動型）',
+        key: 'ad_ops'
+      },
+      {
+        label: 'SEO対応',
+        standard: 'あり（定期精査・誤り発見時は早急に修正）',
+        key: 'seo'
+      },
+      {
+        label: '楽天予約販売機能',
+        standard: 'あり（販売日1日前0時停止・注文確定はWチェック）',
+        key: 'rakuten_pre'
+      },
+      {
+        label: '自治体・サイト事業者との定例会',
+        standard: 'あり（チョイス3社定例：自治体・トラストバンク・SP、月次）',
+        key: 'regular_mtg'
+      },
+    ]
+  },
+  {
+    category: '⑤ 寄附者対応',
+    catClass: 'cat-row-5',
+    items: [
+      {
+        label: '問い合わせ窓口',
+        standard: '電話・メール・RMS・さとふる問い合わせ窓口・Yahoo!経由（架電対応）',
+        key: 'inquiry_ch'
+      },
+      {
+        label: 'クレーム報告ルート',
+        standard: '担当者から自治体（宮崎市）へ直接報告',
+        key: 'claim_route'
+      },
+      {
+        label: '書類再発行対応範囲',
+        standard: '弊社で印刷〜郵送まで対応（受託発送）',
+        key: 'doc_reissue'
+      },
+      {
+        label: 'メルマガ配信',
+        standard: 'あり（楽天・チョイス）',
+        key: 'mailmag'
+      },
+      {
+        label: 'レビュー返信対応',
+        standard: 'あり（管理シートで返信案作成→Wチェック→投稿）',
+        key: 'review_reply'
+      },
+      {
+        label: 'FAX・郵便物受付',
+        standard: 'あり（郵振FAX・カタログ郵送 等）',
+        key: 'fax_mail'
+      },
+    ]
+  }
+];
+
+const TASKS = [
+  { id:'t1', phase:1, title:'ヒアリングシートを各自治体担当者へ配布', meta:'期限: 6月中', status:'inprogress' },
+  { id:'t2', phase:1, title:'港区 ヒアリング回答回収', meta:'担当: ─', status:'todo' },
+  { id:'t3', phase:1, title:'生駒市 ヒアリング回答回収', meta:'担当: ─', status:'todo' },
+  { id:'t4', phase:1, title:'高千穂町 ヒアリング回答回収', meta:'担当: ─', status:'todo' },
+  { id:'t5', phase:1, title:'三木町 ヒアリング回答回収', meta:'担当: ─', status:'todo' },
+  { id:'t6', phase:1, title:'国富町 ヒアリング回答回収', meta:'担当: ─', status:'todo' },
+  { id:'t7', phase:1, title:'串間市 ヒアリング回答回収', meta:'担当: ─', status:'todo' },
+  { id:'t8', phase:1, title:'ヒアリング結果を差異マトリクスに集約', meta:'期限: 7月末', status:'todo' },
+  { id:'t9', phase:1, title:'標準軸マニュアルの差異欄を全自治体分埋める', meta:'期限: 7月末', status:'todo' },
+  { id:'t10', phase:1, title:'自治体別 差異一覧表の完成版を作成', meta:'期限: 7月末', status:'todo' },
+  { id:'t11', phase:2, title:'業務カテゴリ別の担当者アサインと役割設計', meta:'期限: 8月', status:'todo' },
+  { id:'t12', phase:2, title:'2課も含めた分業スキームの検討・設計', meta:'期限: 8月', status:'todo' },
+  { id:'t13', phase:2, title:'標準軸マニュアルを用いた研修・OJT実施', meta:'期限: 9月', status:'todo' },
+  { id:'t14', phase:2, title:'横断体制での試験運用開始・フォロー体制確認', meta:'期限: 9月末', status:'todo' },
+  { id:'t15', phase:3, title:'余剰リソースを寄附拡大・事業者開拓・提案活動に投入', meta:'開始: 10月〜', status:'todo' },
+  { id:'t16', phase:3, title:'12月最大繁忙期に向けたキャンペーン・返礼品強化', meta:'開始: 10月〜', status:'todo' },
+];
+
+const TIMELINE_ROWS = [
+  { label: '寄附受付 業務量', cells: ['中','中','中','中','高','高','最繁忙','中','低','低'],
+    classes: ['','','','','tl-busy-high','tl-busy-high','tl-busy-high','','',''] },
+  { label: '業務イベント', cells: ['','','お盆\n自粛','','','繁忙\n準備','年末\n自粛','WS\n締切','確定\n申告','確定\n申告'],
+    classes: ['','','tl-caution','','','tl-event','tl-caution','tl-event','tl-event','tl-event'] },
+  { label: 'Phase 1 標準化', cells: ['着手','完了','─','─','─','─','─','─','─','─'],
+    classes: ['tl-phase1 tl-now','tl-phase1','','','','','','','',''] },
+  { label: 'ヒアリング実施・回収', cells: ['実施','回収','─','─','─','─','─','─','─','─'],
+    classes: ['tl-phase1 tl-now','tl-phase1','','','','','','','',''] },
+  { label: 'Phase 2 横断体制移行', cells: ['─','─','設計','研修','本格\n運用','─','─','─','─','─'],
+    classes: ['','','tl-phase2','tl-phase2','tl-phase2','','','','',''] },
+  { label: 'Phase 3 寄附額増投入', cells: ['─','─','─','─','開始','強化','全力','継続','継続','継続'],
+    classes: ['','','','','tl-phase3','tl-phase3','tl-phase3','tl-phase3','tl-phase3','tl-phase3'] },
+];
+
+// ===================== STATE =====================
+let editMode = false;
+let state = {};
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('standardization_v1');
+    if (saved) state = JSON.parse(saved);
+  } catch(e) {}
+  // Defaults
+  if (!state.matrix) state.matrix = {};
+  if (!state.tasks) {
+    state.tasks = {};
+    TASKS.forEach(t => state.tasks[t.id] = t.status);
+  }
+  if (!state.hearing) {
+    state.hearing = {};
+    MUNICIPALITIES.forEach(m => state.hearing[m] = { status: 'todo', note: '' });
+  }
+}
+
+function saveState() {
+  localStorage.setItem('standardization_v1', JSON.stringify(state));
+  const ind = document.getElementById('saveIndicator');
+  ind.classList.add('show');
+  setTimeout(() => ind.classList.remove('show'), 2000);
+}
+
+// ===================== MATRIX =====================
+function buildMatrix() {
+  const tbody = document.getElementById('matrixBody');
+  tbody.innerHTML = '';
+
+  MATRIX_DATA.forEach(cat => {
+    // Category header row
+    const catRow = document.createElement('tr');
+    catRow.className = 'cat-row ' + cat.catClass;
+    const td = document.createElement('td');
+    td.colSpan = 8;
+    td.textContent = cat.category;
+    catRow.appendChild(td);
+    tbody.appendChild(catRow);
+
+    // Item rows
+    cat.items.forEach(item => {
+      const row = document.createElement('tr');
+
+      // Label cell
+      const labelTd = document.createElement('td');
+      labelTd.className = 'item-cell';
+      labelTd.textContent = item.label;
+      row.appendChild(labelTd);
+
+      // Standard cell
+      const stdTd = document.createElement('td');
+      stdTd.className = 'standard-cell';
+      stdTd.style.fontSize = '11px';
+      stdTd.textContent = item.standard;
+      row.appendChild(stdTd);
+
+      // Municipality cells
+      MUNICIPALITIES.forEach(muni => {
+        const muniTd = document.createElement('td');
+        const key = `${item.key}__${muni}`;
+        const data = state.matrix[key] || { status: 'pending', answer: '' };
+
+        muniTd.innerHTML = buildMuniCell(key, data, editMode);
+        row.appendChild(muniTd);
+      });
+
+      tbody.appendChild(row);
+    });
+  });
+
+  updateSummary();
+}
+
+function buildMuniCell(key, data, edit) {
+  const statusMap = {
+    'standard': '<span class="status-circle s-standard" title="標準と同じ">●</span>',
+    'diff':     '<span class="status-circle s-diff" title="差異あり">▲</span>',
+    'none':     '<span class="status-circle s-none" title="対応なし">─</span>',
+    'pending':  '<span class="status-circle s-pending" title="ヒアリング中">？</span>',
+  };
+
+  if (!edit) {
+    const answer = data.answer ? `<div style="font-size:11px;color:#475569;margin-top:4px;">${escHtml(data.answer)}</div>` : '';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">${statusMap[data.status] || statusMap.pending}${answer}</div>`;
+  }
+
+  return `<div class="muni-cell">
+    <select class="status-select" onchange="updateMatrix('${key}', 'status', this.value)">
+      <option value="pending" ${data.status==='pending'?'selected':''}>？ ヒアリング中</option>
+      <option value="standard" ${data.status==='standard'?'selected':''}>● 標準と同じ</option>
+      <option value="diff" ${data.status==='diff'?'selected':''}>▲ 差異あり</option>
+      <option value="none" ${data.status==='none'?'selected':''}>─ 対応なし</option>
+    </select>
+    <textarea class="answer-input" placeholder="回答・差異の内容..." onchange="updateMatrix('${key}', 'answer', this.value)">${escHtml(data.answer || '')}</textarea>
+  </div>`;
+}
+
+function updateMatrix(key, field, value) {
+  if (!state.matrix[key]) state.matrix[key] = { status: 'pending', answer: '' };
+  state.matrix[key][field] = value;
+  saveState();
+  updateSummary();
+  updateDiffPanel();
+}
+
+function updateSummary() {
+  let counts = { standard: 0, diff: 0, none: 0, pending: 0 };
+  const total = MATRIX_DATA.reduce((s,c) => s + c.items.length, 0) * MUNICIPALITIES.length;
+
+  Object.values(state.matrix).forEach(v => {
+    if (counts[v.status] !== undefined) counts[v.status]++;
+  });
+  counts.pending = total - counts.standard - counts.diff - counts.none;
+
+  document.getElementById('cnt-standard').textContent = counts.standard;
+  document.getElementById('cnt-diff').textContent = counts.diff;
+  document.getElementById('cnt-none').textContent = counts.none;
+  document.getElementById('cnt-pending').textContent = counts.pending;
+}
+
+function updateDiffPanel() {
+  const diffs = [];
+  MATRIX_DATA.forEach(cat => {
+    cat.items.forEach(item => {
+      MUNICIPALITIES.forEach(muni => {
+        const key = `${item.key}__${muni}`;
+        const data = state.matrix[key];
+        if (data && data.status === 'diff') {
+          diffs.push({ cat: cat.category, item: item.label, muni, answer: data.answer });
+        }
+      });
+    });
+  });
+
+  const panel = document.getElementById('diffPanel');
+  const list = document.getElementById('diffList');
+
+  if (diffs.length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  list.innerHTML = diffs.map(d =>
+    `<div class="diff-row">
+      <span class="diff-tag">${d.muni}</span>
+      <span><strong>${d.item}</strong>${d.answer ? ' — ' + escHtml(d.answer) : ''}</span>
+    </div>`
+  ).join('');
+}
+
+function toggleEdit() {
+  editMode = !editMode;
+  const btn = document.getElementById('editBtn');
+  btn.textContent = editMode ? '👁️ 閲覧モードに戻る' : '✏️ 入力モード';
+  btn.className = editMode ? 'toggle-btn secondary' : 'toggle-btn primary';
+  buildMatrix();
+}
+
+// ===================== PROGRESS =====================
+function buildTimeline() {
+  const container = document.getElementById('timelineRows');
+  TIMELINE_ROWS.forEach(row => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tl-row-wrapper';
+
+    const label = document.createElement('div');
+    label.className = 'timeline-label';
+    label.textContent = row.label;
+    wrapper.appendChild(label);
+
+    const cells = document.createElement('div');
+    cells.style.flex = '1';
+    cells.style.display = 'flex';
+
+    row.cells.forEach((cell, i) => {
+      const td = document.createElement('div');
+      td.style.flex = '1';
+      td.className = 'timeline-row ' + (row.classes[i] || '');
+      td.style.whiteSpace = 'pre-line';
+      td.textContent = cell;
+      cells.appendChild(td);
+    });
+
+    wrapper.appendChild(cells);
+    container.appendChild(wrapper);
+  });
+}
+
+function buildTasks() {
+  const list = document.getElementById('taskList');
+  const statusCycle = { todo: 'inprogress', inprogress: 'done', done: 'blocked', blocked: 'todo' };
+  const badgeMap = { todo: 'badge-todo', inprogress: 'badge-inprogress', done: 'badge-done', blocked: 'badge-blocked' };
+  const labelMap = { todo: '未着手', inprogress: '進行中', done: '完了', blocked: 'ブロック中' };
+  const checkMap = { todo: '', inprogress: '▷', done: '✓', blocked: '✕' };
+  const phaseColors = { 1:'#2563eb', 2:'#16a34a', 3:'#ea580c' };
+
+  TASKS.forEach(task => {
+    const status = state.tasks[task.id] || task.status;
+    const item = document.createElement('div');
+    item.className = 'task-item';
+    item.id = 'task_' + task.id;
+
+    item.innerHTML = `
+      <div class="task-check ${status === 'done' ? 'done' : status === 'inprogress' ? 'in-progress' : ''}" onclick="cycleTaskStatus('${task.id}')" title="クリックでステータス変更">
+        ${checkMap[status] || ''}
+      </div>
+      <div class="task-info">
+        <div class="task-title" style="${status==='done' ? 'text-decoration:line-through;color:#94a3b8;' : ''}">${task.title}</div>
+        <div class="task-meta">
+          <span style="background:#f1f5f9;color:${phaseColors[task.phase]};font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;">Phase ${task.phase}</span>
+          ${task.meta}
+        </div>
+      </div>
+      <button class="task-status-badge ${badgeMap[status]}" onclick="cycleTaskStatus('${task.id}')">${labelMap[status]}</button>
+    `;
+    list.appendChild(item);
+  });
+
+  updatePhaseProgress();
+}
+
+function cycleTaskStatus(id) {
+  const cycle = { todo: 'inprogress', inprogress: 'done', done: 'todo', blocked: 'todo' };
+  const current = state.tasks[id] || 'todo';
+  state.tasks[id] = cycle[current];
+  saveState();
+  // Re-render task
+  const task = TASKS.find(t => t.id === id);
+  const item = document.getElementById('task_' + id);
+  if (item) {
+    const tmp = document.createElement('div');
+    document.getElementById('taskList').innerHTML = '';
+    buildTasks();
+  }
+  updatePhaseProgress();
+}
+
+function updatePhaseProgress() {
+  [1,2,3].forEach(phase => {
+    const tasks = TASKS.filter(t => t.phase === phase);
+    const done = tasks.filter(t => (state.tasks[t.id] || t.status) === 'done').length;
+    const pct = Math.round(done / tasks.length * 100);
+    const bar = document.getElementById('p'+phase+'bar');
+    const txt = document.getElementById('p'+phase+'text');
+    if (bar) bar.style.width = pct + '%';
+    if (txt) txt.textContent = `${done}/${tasks.length} 完了 (${pct}%)`;
+  });
+}
+
+// ===================== HEARING =====================
+function buildHearing() {
+  const grid = document.getElementById('hearingGrid');
+  const statusCycle = { todo: 'sent', sent: 'collected', collected: 'done', done: 'todo' };
+  const pillMap = { todo: 'pill-todo', sent: 'pill-sent', collected: 'pill-collected', done: 'pill-done' };
+  const labelMap = { todo: '未配布', sent: '配布済', collected: '回収済', done: '整理完了' };
+
+  MUNICIPALITIES.forEach(muni => {
+    const data = state.hearing[muni] || { status: 'todo', note: '' };
+    const card = document.createElement('div');
+    card.className = 'hearing-card';
+    card.id = 'hcard_' + muni;
+    card.innerHTML = `
+      <div class="hearing-muni-name">🏛️ ${muni}</div>
+      <div class="hearing-status-row">
+        <span class="hearing-status-label">ヒアリング状態</span>
+        <span class="status-pill ${pillMap[data.status]}" onclick="cycleHearingStatus('${muni}')">${labelMap[data.status]}</span>
+      </div>
+      <textarea class="hearing-note" placeholder="メモ（担当者名、日程、特記事項 等）..." onchange="updateHearingNote('${muni}', this.value)">${escHtml(data.note || '')}</textarea>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function cycleHearingStatus(muni) {
+  const cycle = { todo: 'sent', sent: 'collected', collected: 'done', done: 'todo' };
+  const current = state.hearing[muni]?.status || 'todo';
+  if (!state.hearing[muni]) state.hearing[muni] = { status: 'todo', note: '' };
+  state.hearing[muni].status = cycle[current];
+  saveState();
+  const grid = document.getElementById('hearingGrid');
+  grid.innerHTML = '';
+  buildHearing();
+}
+
+function updateHearingNote(muni, value) {
+  if (!state.hearing[muni]) state.hearing[muni] = { status: 'todo', note: '' };
+  state.hearing[muni].note = value;
+  saveState();
+}
+
+// ===================== UTILS =====================
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ===================== INIT =====================
+loadState();
+buildMatrix();
+updateDiffPanel();
+buildTimeline();
+buildTasks();
+buildHearing();
+</script>
+</body>
+</html>
