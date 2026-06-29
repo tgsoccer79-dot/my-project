@@ -241,13 +241,14 @@
         <thead>
           <tr>
             <th class="item-col">業務カテゴリ / 確認事項</th>
-            <th class="standard-col">★ 標準</th>
+            <th style="background:#475569;color:white;font-size:11px;">記入例<br>（宮崎市）</th>
             <th>港区</th>
             <th>生駒市</th>
             <th>高千穂町</th>
             <th>三木町</th>
             <th>国富町</th>
             <th>串間市</th>
+            <th class="standard-col">★ 標準<br><span style="font-weight:400;font-size:10px;">（回収後に確定）</span></th>
           </tr>
         </thead>
         <tbody id="matrixBody"></tbody>
@@ -593,12 +594,13 @@ function buildMatrix() {
       labelTd.textContent = item.label;
       row.appendChild(labelTd);
 
-      // Standard cell
-      const stdTd = document.createElement('td');
-      stdTd.className = 'standard-cell';
-      stdTd.style.fontSize = '11px';
-      stdTd.textContent = item.standard;
-      row.appendChild(stdTd);
+      // Example cell (宮崎市 - read only reference)
+      const exTd = document.createElement('td');
+      exTd.style.fontSize = '11px';
+      exTd.style.background = '#f8fafc';
+      exTd.style.color = '#475569';
+      exTd.textContent = item.standard;
+      row.appendChild(exTd);
 
       // Municipality cells
       MUNICIPALITIES.forEach(muni => {
@@ -609,6 +611,21 @@ function buildMatrix() {
         muniTd.innerHTML = buildMuniCell(key, data, editMode);
         row.appendChild(muniTd);
       });
+
+      // ★ Standard (confirmed) cell - always editable
+      const stdTd = document.createElement('td');
+      stdTd.className = 'standard-cell';
+      const stdKey = `std__${item.key}`;
+      const stdVal = state.matrix[stdKey] || '';
+      if (editMode) {
+        stdTd.innerHTML = `<textarea class="answer-input" placeholder="全自治体の回答を踏まえて標準を記入..." onchange="updateStandard('${stdKey}', this.value)" style="background:#eff6ff;">${escHtml(stdVal)}</textarea>`;
+      } else {
+        stdTd.style.fontSize = '11px';
+        stdTd.innerHTML = stdVal
+          ? `<span style="color:#1d4ed8;font-weight:600;">${escHtml(stdVal)}</span>`
+          : `<span style="color:#94a3b8;font-size:11px;">未確定</span>`;
+      }
+      row.appendChild(stdTd);
 
       tbody.appendChild(row);
     });
@@ -639,6 +656,11 @@ function buildMuniCell(key, data, edit) {
     </select>
     <textarea class="answer-input" placeholder="回答・差異の内容..." onchange="updateMatrix('${key}', 'answer', this.value)">${escHtml(data.answer || '')}</textarea>
   </div>`;
+}
+
+function updateStandard(key, value) {
+  state.matrix[key] = value;
+  saveState();
 }
 
 function updateMatrix(key, field, value) {
