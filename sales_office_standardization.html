@@ -206,7 +206,6 @@
 
 <div class="tab-nav">
   <button class="tab-btn active" onclick="switchTab('matrix')">📊 差異分析マトリクス</button>
-  <button class="tab-btn" onclick="switchTab('progress')">✅ 進捗管理ボード</button>
   <button class="tab-btn" onclick="switchTab('hearing')">📋 ヒアリング管理</button>
 </div>
 
@@ -257,65 +256,7 @@
   </div>
 </div>
 
-<!-- ====== TAB 2: PROGRESS ====== -->
-<div id="tab-progress" class="tab-content">
-  <div class="phase-grid">
-    <div class="phase-card phase-1">
-      <div class="phase-label">Phase 1</div>
-      <div class="phase-title">業務の標準化・差異の明文化</div>
-      <div class="phase-period">6月〜7月末</div>
-      <div class="phase-progress"><div class="phase-progress-bar" id="p1bar" style="width:20%"></div></div>
-      <div class="phase-progress-text" id="p1text">20%</div>
-    </div>
-    <div class="phase-card phase-2">
-      <div class="phase-label">Phase 2</div>
-      <div class="phase-title">横断体制の設計・研修・運用開始</div>
-      <div class="phase-period">8月〜9月末</div>
-      <div class="phase-progress"><div class="phase-progress-bar" id="p2bar" style="width:0%"></div></div>
-      <div class="phase-progress-text" id="p2text">0%</div>
-    </div>
-    <div class="phase-card phase-3">
-      <div class="phase-label">Phase 3</div>
-      <div class="phase-title">寄附額増へのリソース全投入</div>
-      <div class="phase-period">10月〜（12月最大化）</div>
-      <div class="phase-progress"><div class="phase-progress-bar" id="p3bar" style="width:0%"></div></div>
-      <div class="phase-progress-text" id="p3text">0%</div>
-    </div>
-  </div>
-
-  <!-- Timeline -->
-  <div class="card" style="margin-bottom:20px;">
-    <div class="card-header"><h2>📅 2026年度スケジュール</h2></div>
-    <div class="card-body" style="overflow-x:auto;padding:0;">
-      <div style="display:flex;min-width:700px;">
-        <div style="width:110px;"></div>
-        <div class="timeline" style="flex:1;">
-          <div class="timeline-month"><div class="timeline-month-label">6月<br>NOW</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">7月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">8月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">9月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">10月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">11月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">12月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">1月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">2月</div></div>
-          <div class="timeline-month"><div class="timeline-month-label">3月</div></div>
-        </div>
-      </div>
-      <div id="timelineRows"></div>
-    </div>
-  </div>
-
-  <!-- Task list -->
-  <div class="card">
-    <div class="card-header"><h2>📌 タスク一覧</h2><span style="font-size:12px;color:var(--gray);margin-left:8px;">クリックでステータス変更</span></div>
-    <div class="card-body">
-      <div class="task-list" id="taskList"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ====== TAB 3: HEARING ====== -->
+<!-- ====== TAB 2: HEARING ====== -->
 <div id="tab-hearing" class="tab-content">
   <div class="card">
     <div class="card-header"><h2>📋 自治体別 ヒアリング進捗管理</h2></div>
